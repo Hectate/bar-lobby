@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: MIT
 
-import { app, screen, BrowserWindow } from "electron";
+import { net, app, screen, BrowserWindow } from "electron";
 import { ipcMain } from "@main/typed-ipc";
 import os from "os";
 import { STATE_PATH, ASSETS_PATH } from "@main/config/app";
@@ -19,6 +19,7 @@ export type Info = {
         numOfDisplays: number;
         currentDisplayIndex: number;
     };
+	maybeOnline: boolean;
 };
 
 function getInfo() {
@@ -42,6 +43,8 @@ function getInfo() {
             numOfDisplays: displayIds.length,
             currentDisplayIndex: displayIds.indexOf(currentDisplayId),
         },
+		// A true value does not guarantee connectivity, however a false value is almost certainly a guarantee of a lack of connectivity.
+		maybeOnline: net.isOnline(),
     };
     return info;
 }

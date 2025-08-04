@@ -24,6 +24,7 @@ SPDX-License-Identifier: MIT
                 <button class="login-button" @click="login">Login</button>
                 <div v-if="hasCredentials" class="play-offline" @click="changeAccount">Change account</div>
                 <div v-if="error" class="txt-error">{{ error }}</div>
+				<div class="txt-error">maybeOnline status: {{ maybeOnline }}</div>
                 <div class="play-offline" @click="playOffline">Play Offline</div>
             </div>
         </Transition>
@@ -38,11 +39,14 @@ import { useRouter } from "vue-router";
 import { auth } from "@renderer/store/me.store";
 import { settingsStore } from "@renderer/store/settings.store";
 import { tachyon } from "@renderer/store/tachyon.store";
+import { infosStore } from "@renderer/store/infos.store";
 
 const router = useRouter();
 
 const connecting = ref(false);
 const error = ref<string>();
+
+let maybeOnline:boolean = infosStore.maybeOnline;
 
 const hasCredentials = ref(false);
 onActivated(() => {
