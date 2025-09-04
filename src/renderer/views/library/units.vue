@@ -11,6 +11,9 @@ SPDX-License-Identifier: MIT
 <template>
     <div>
         <h1>{{ route.meta.title }}</h1>
+        <div class="flex flex-row flex-center-content">
+            <ThreeScene></ThreeScene>
+        </div>
         <Markdown
             source="
 - Similar to online unit browser, but automated
@@ -26,6 +29,7 @@ SPDX-License-Identifier: MIT
 <script lang="ts" setup>
 import { useRouter } from "vue-router";
 import Markdown from "@renderer/components/misc/Markdown.vue";
+import ThreeScene from "@renderer/components/three/ThreeScene.vue";
 
 const router = useRouter();
 const route = router.currentRoute.value;

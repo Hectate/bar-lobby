@@ -43,6 +43,7 @@
         "@iconify/json": "^2.2.362",
         "@iconify/vue": "^5.0.0",
         "@sinclair/typebox": "^0.34.38",
+        "@types/three": "^0.180.0",
         "@vueuse/core": "^13.5.0",
         "7zip-bin": "^5.2.0",
         "ajv": "^8.17.1",
@@ -64,6 +65,7 @@
         "primeicons": "^6.0.1",
         "primevue": "3.23.0",
         "tachyon-protocol": "^1.12.0",
+        "three": "^0.180.0",
         "vue-i18n": "^11.1.11",
         "vue-router": "^4.5.1",
         "ws": "^8.18.3"

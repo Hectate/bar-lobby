@@ -21,3 +21,6 @@ export const fontFiles = import.meta.glob<string>(["./fonts/*", "!**/*.license"]
 
 // Languages
 export const localeFilePaths = import.meta.glob<string>(["./languages/**/*", "!**/*.license"], { eager: true, import: "default", query: "?url" });
+
+// 3D Models
+export const modelFiles = import.meta.glob<string>(["./models/*"], { eager: true, import: "default", query: "?url" });
