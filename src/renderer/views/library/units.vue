@@ -12,7 +12,7 @@ SPDX-License-Identifier: MIT
     <div>
         <h1>{{ route.meta.title }}</h1>
         <div class="flex flex-row flex-center-content">
-            <ThreeScene></ThreeScene>
+            <ThreeScene></ThreeScene><ThreeScene></ThreeScene>
         </div>
         <Markdown
             source="

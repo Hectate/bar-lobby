@@ -13,6 +13,7 @@ SPDX-License-Identifier: MIT
 <script lang="ts" setup>
 import { ref, onMounted } from "vue";
 import * as THREE from "three";
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { modelFiles } from "@renderer/assets/assetFiles";
 import Panel from "@renderer/components/common/Panel.vue";
@@ -26,6 +27,8 @@ const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
 
 const renderer = new THREE.WebGLRenderer({ alpha: true });
 renderer.setSize(800, 600);
+
+const controls = new OrbitControls( camera, renderer.domElement )
 
 const modelLoader = new GLTFLoader();
 let model: THREE.Group = new THREE.Group();
@@ -82,11 +85,12 @@ const planeMat:THREE.MeshBasicMaterial = new THREE.MeshBasicMaterial({map:shadow
 const planeGeo:THREE.PlaneGeometry = new THREE.PlaneGeometry(200,200,1,1);
 const plane:THREE.Mesh = new THREE.Mesh(planeGeo, planeMat);
 scene.add(plane);
+
 camera.position.z = 60;
 camera.position.y = 50;
 camera.lookAt(model.position);
-plane.lookAt(camera.position);
-plane.position.sub(camera.position);
+plane.lookAt(camera.position); //orient the plane to the camera
+plane.position.sub(camera.position); //move it directly opposite from the origin as the camera
 
 const light = new THREE.DirectionalLight(0xffffff, 1);
 scene.add(light);
@@ -95,8 +99,8 @@ function animate() {
     requestAnimationFrame(animate);
 
     //model.rotation.x += 0.02;
-    model.rotation.y += 0.01;
-
+    //model.rotation.y += 0.01;
+	controls.update();
     renderer.render(scene, camera);
 }
 
