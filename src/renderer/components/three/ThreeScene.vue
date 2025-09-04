@@ -5,7 +5,9 @@ SPDX-License-Identifier: MIT
 -->
 
 <template>
-    <div ref="scene_container"></div>
+	<Panel>
+		<div ref="scene_container"></div>
+	</Panel>
 </template>
 
 <script lang="ts" setup>
@@ -13,23 +15,54 @@ import { ref, onMounted } from "vue";
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { modelFiles } from "@renderer/assets/assetFiles";
+import Panel from "@renderer/components/common/Panel.vue";
 
 const scene_container = ref();
 
 const scene = new THREE.Scene();
-//const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const camera = new THREE.OrthographicCamera(-100, 100, 100, -100, 0.1, 2000);
+//const camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+//const camera = new THREE.OrthographicCamera(-50, 50, 50, -50, 0.1, 2000);
 
 const renderer = new THREE.WebGLRenderer({ alpha: true });
-renderer.setSize(500, 500);
+renderer.setSize(800, 600);
 
-const loader = new GLTFLoader();
+const modelLoader = new GLTFLoader();
 let model: THREE.Group = new THREE.Group();
 
-loader.load(
-    modelFiles["./models/armvang.glb"],
+const texLoader = new THREE.TextureLoader();
+let material:THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial();
+
+texLoader.load(
+	modelFiles["./models/arm/arm_color.png"],
+	function ( texture ) {
+		texture.colorSpace = THREE.SRGBColorSpace;
+		texture.flipY = false;
+		material.map = texture;
+	},
+	undefined,
+	function ( error ) {
+		console.log( "Error: ", error);
+	}
+);
+texLoader.load(
+	modelFiles["./models/arm/arm_normal.png"],
+	function ( texture ) {
+		texture.colorSpace = THREE.SRGBColorSpace;
+		texture.flipY = false;
+		material.normalMap = texture;
+	}
+)
+modelLoader.load(
+    modelFiles["./models/arm/armvang.glb"],
     function (gltf) {
         model = gltf.scene;
+		model.traverse((node: THREE.Object3D) => {
+			if (node instanceof THREE.Mesh) {
+				const mesh = node as THREE.Mesh;
+				mesh.material = material;
+			}
+		});
         scene.add(model);
         model.position.z = -10;
     },
@@ -43,20 +76,25 @@ loader.load(
     }
 );
 
-const geometry = new THREE.BoxGeometry(1, 1, 1);
-const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-const cube = new THREE.Mesh(geometry, material);
-//scene.add(cube);
+// Simple light round gradient to help give the model some background
+const shadowTex:THREE.Texture = texLoader.load(modelFiles["./models/shadow.png"]);
+const planeMat:THREE.MeshBasicMaterial = new THREE.MeshBasicMaterial({map:shadowTex, transparent:true });
+const planeGeo:THREE.PlaneGeometry = new THREE.PlaneGeometry(200,200,1,1);
+const plane:THREE.Mesh = new THREE.Mesh(planeGeo, planeMat);
+scene.add(plane);
+camera.position.z = 60;
+camera.position.y = 50;
+camera.lookAt(model.position);
+plane.lookAt(camera.position);
+plane.position.sub(camera.position);
 
-camera.position.z = 50;
-
-const light = new THREE.DirectionalLight(0xffffff, 0.5);
+const light = new THREE.DirectionalLight(0xffffff, 1);
 scene.add(light);
 
 function animate() {
     requestAnimationFrame(animate);
 
-    model.rotation.x += 0.01;
+    //model.rotation.x += 0.02;
     model.rotation.y += 0.01;
 
     renderer.render(scene, camera);
