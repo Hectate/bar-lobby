@@ -1,0 +1,849 @@
+/*
+* This is the script directly from the BAR website unit viewer. This is not intended for use in bar-lobby directly. See implemention/refactor in UnitScene.vue instead.
+*/
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { SSAOPass } from "three/addons/postprocessing/SSAOPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+// import { FXAAShader } from 'three/addons/shaders/FXAAShader.js'; // Not used
+import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
+import { BrightnessContrastShader } from "three/addons/shaders/BrightnessContrastShader.js";
+
+// --- Mobile Device Detection ---
+function isMobileDevice() {
+	const ua = navigator.userAgent.toLowerCase();
+	const isMobileUA = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/.test(ua);
+	const hasTouch = ("maxTouchPoints" in navigator && navigator.maxTouchPoints > 0) || ("msMaxTouchPoints" in navigator && navigator.msMaxTouchPoints > 0);
+	const isSmallScreen = window.innerWidth < 768;
+	return isMobileUA || (hasTouch && isSmallScreen);
+}
+const isMobile = isMobileDevice();
+console.log("Is Mobile Device:", isMobile);
+
+// --- Performance Settings Based on Device ---
+const performanceSettings = {
+	pixelRatioCap: isMobile ? Math.min(window.devicePixelRatio, 1.5) : window.devicePixelRatio,
+	shadowMapSize: isMobile ? 256 : 1024,
+	shadowMapType: isMobile ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap,
+	anisotropy: isMobile ? 4 : window.renderer ? window.renderer.capabilities.getMaxAnisotropy() / 2 : 8, // Calculated later
+	ssaoKernelSize: isMobile ? 6 : 12,
+	ssaoKernelRadius: isMobile ? 8 : 16,
+	ssaoEnabled: true,
+	powerPreference: isMobile ? "low-power" : "high-performance",
+	// --- FPS Limit Setting ---
+	targetFPS: isMobile ? 30 : 60, // Target FPS (e.g., 30). Set higher (e.g., 60) or null to disable limit.
+};
+console.log("Performance Settings:", performanceSettings);
+
+// --- Webflow Compatibility ---
+if (typeof Webflow === "undefined") {
+	window.Webflow = {
+		push: function (cb) {
+			document.addEventListener("DOMContentLoaded", cb);
+		},
+	};
+}
+
+Webflow.push(function () {
+	const container = document.getElementById("model-container");
+	const animToggleButton = document.getElementById("anim-toggle-button");
+	const rotateToggleButton = document.getElementById("rotate-toggle-button");
+	const exportButton = document.getElementById("export-button");
+	const noticeElement = document.getElementById("model-viewer-notice");
+
+	if (!container) {
+		console.error("Container #model-container not found!");
+		return;
+	}
+	container.style.display = "block";
+
+	// --- 1. Determine UnitName from Slug ---
+	const pathSegments = window.location.pathname.split("/");
+	let unitName = pathSegments.pop() || pathSegments.pop() || "armflea";
+	if (unitName.toLowerCase().endsWith(".html")) {
+		unitName = unitName.substring(0, unitName.length - 5);
+	}
+	unitName = unitName.replace(/[^a-zA-Z0-9_-]/g, "");
+
+	// --- 2. Determine Faction and Settings ---
+	let faction = "arm",
+		teamColorValue = 0x0043ee,
+		texturePrefix = "arm";
+	let normalMapScaleY = 2.2,
+		roughnessValue = 0.45,
+		envMapIntensityValue = 1.05;
+	let pbrEmissiveIntensityValue = 14.0,
+		pulseMaxValue = 1.4;
+	const hdrBasePath = "https://raw.githubusercontent.com/icexuick/BAR-modelviewer/main/hdr/";
+	let armHdrUrl = hdrBasePath + "clarens_midday_2k5.hdr";
+	let corHdrUrl = hdrBasePath + "clarens_midday_2k5.hdr";
+	let legHdrUrl = hdrBasePath + "clarens_midday_2k5.hdr";
+	let selectedHdrUrl = armHdrUrl;
+
+	if (unitName.startsWith("cor")) {
+		faction = "cor";
+		teamColorValue = 0xff0000;
+		texturePrefix = "cor";
+		roughnessValue = 0.5;
+		envMapIntensityValue = 0.95;
+		pbrEmissiveIntensityValue = 15.0;
+		selectedHdrUrl = corHdrUrl;
+	} else if (unitName.startsWith("leg")) {
+		faction = "leg";
+		teamColorValue = 0x00ff00;
+		texturePrefix = "leg";
+		roughnessValue = 0.8;
+		envMapIntensityValue = 0.89;
+		pbrEmissiveIntensityValue = 12.0;
+		selectedHdrUrl = legHdrUrl;
+	}
+
+	const teamColor = new THREE.Color(teamColorValue);
+	const pbrEmissiveIntensity = pbrEmissiveIntensityValue;
+
+	// --- 4. Construct Dynamic URLs for PNGs ---
+	const modelURL = `https://raw.githubusercontent.com/icexuick/BAR-modelviewer/main/${unitName}.glb`;
+	const baseURL = "https://raw.githubusercontent.com/icexuick/BAR-modelviewer/main/tex/";
+	const diffuseURL = `${baseURL}${texturePrefix}_color.png`;
+	const pbrURL = `${baseURL}${texturePrefix}_other.png`;
+	const normalURL = `${baseURL}${texturePrefix}_normal.png`;
+	const teamURL = `${baseURL}${texturePrefix}_team.png`;
+
+	// --- Basic Scene Setup ---
+	const scene = new THREE.Scene();
+	const camera = new THREE.PerspectiveCamera(35, container.offsetWidth / container.offsetHeight, 0.1, 1000);
+
+	// --- Renderer Setup (Applying Mobile Optimizations) ---
+	const renderer = new THREE.WebGLRenderer({
+		antialias: false,
+		alpha: true,
+		powerPreference: performanceSettings.powerPreference,
+	});
+	window.renderer = renderer;
+	performanceSettings.anisotropy = isMobile ? 4 : Math.min(8, renderer.capabilities.getMaxAnisotropy());
+
+	renderer.setPixelRatio(performanceSettings.pixelRatioCap);
+	renderer.setSize(container.offsetWidth, container.offsetHeight);
+	renderer.setClearColor(0x000000, 0);
+	renderer.outputColorSpace = THREE.SRGBColorSpace;
+	renderer.toneMapping = THREE.ACESFilmicToneMapping;
+	renderer.toneMappingExposure = 1.5;
+
+	// --- Shadow Setup (Applying Mobile Optimizations) ---
+	renderer.shadowMap.enabled = true;
+	renderer.shadowMap.type = performanceSettings.shadowMapType;
+	const shadowMapSize = performanceSettings.shadowMapSize;
+	console.log(`Using Shadow Map Type: ${performanceSettings.shadowMapType === THREE.PCFShadowMap ? "PCF" : "SoftPCF"}, Size: ${shadowMapSize}`);
+
+	container.appendChild(renderer.domElement);
+
+	// --- Controls ---
+	const controls = new OrbitControls(camera, renderer.domElement);
+	controls.enableDamping = true;
+	controls.dampingFactor = 0.035;
+	controls.minDistance = 1;
+	controls.maxDistance = 500;
+
+	// --- DOWNLOAD GLB BUTTON ---
+	const downloadButton = document.getElementById("download-glb-button");
+	if (downloadButton) {
+		downloadButton.href = modelURL;
+		downloadButton.download = `${unitName}.glb`;
+	}
+
+	// --- Lights ---
+	const lightGroup = new THREE.Group();
+	scene.add(lightGroup);
+	const keyLightIntensity = 0.6,
+		fillLightIntensity = 0.1,
+		ambientLightIntensity = 0.02;
+
+	const directionalLight = new THREE.DirectionalLight(0xffffff, keyLightIntensity);
+	directionalLight.position.set(3, 2, 0);
+	directionalLight.castShadow = true;
+	lightGroup.add(directionalLight);
+	directionalLight.shadow.mapSize.width = shadowMapSize;
+	directionalLight.shadow.mapSize.height = shadowMapSize;
+	directionalLight.shadow.camera.near = 0.0001;
+	directionalLight.shadow.camera.far = 500;
+	let shadowCamSize = 25;
+	directionalLight.shadow.bias = -0.0005;
+
+	const directionalLight2 = new THREE.DirectionalLight(0xffffff, fillLightIntensity);
+	directionalLight2.position.set(-3, 2, -4);
+	directionalLight2.castShadow = false;
+	lightGroup.add(directionalLight2);
+
+	const ambientLight = new THREE.AmbientLight(0xffffff, ambientLightIntensity);
+	scene.add(ambientLight);
+
+	// --- Loaders ---
+	const textureLoader = new THREE.TextureLoader();
+	const gltfLoader = new GLTFLoader();
+	const rgbeLoader = new RGBELoader();
+
+	// --- Variables ---
+	let material, modelScene, groundMesh;
+	const timeUniform = { value: 0.0 };
+	let isTurntableEnabledByUser = true;
+	let isInteracting = false,
+		idleTimer = null,
+		turntableActive = false;
+	const idleTimeoutDuration = 3000;
+	const turntableSpeed = 0.22;
+	let isAltDown = false,
+		isEnvDragging = false,
+		startMouseX = 0,
+		startMouseY = 0;
+	const envRotationSpeed = 4;
+	let composer, renderPass, ssaoPass, smaaPass, brightnessContrastPass, outputPass;
+	let mixer = null,
+		animations = [],
+		animationActions = {},
+		currentAction = null,
+		isPlayingAnimation = false;
+	const loopingAnimationName = "walk";
+
+	// --- Resource Loading ---
+	Promise.all([
+		rgbeLoader
+			.loadAsync(selectedHdrUrl)
+			.then((tex) => {
+				tex.mapping = THREE.EquirectangularReflectionMapping;
+				scene.environment = tex;
+				scene.background = null;
+				return tex;
+			})
+			.catch((hdrError) => {
+				console.error("HDR LOAD FAILED:", hdrError);
+				scene.environment = null;
+				return null;
+			}),
+		textureLoader.loadAsync(diffuseURL),
+		textureLoader.loadAsync(pbrURL),
+		textureLoader.loadAsync(normalURL),
+		textureLoader.loadAsync(teamURL),
+		gltfLoader.loadAsync(modelURL),
+	])
+		.then(([envResult, diffuseMap, pbrMap, normalMap, teamMap, gltf]) => {
+			if (!gltf || !gltf.scene) {
+				throw new Error("GLTF model data missing after load.");
+			}
+
+			// ✅ Hide fallback image block if model loaded
+			const fallbackImageBlock = document.querySelector(".flex-unit-detail-img");
+			if (fallbackImageBlock) fallbackImageBlock.style.display = "none";
+
+			if (teamMap) {
+				console.log("Team Map Texture Loaded:", teamMap);
+			} else {
+				console.error("Team Map Texture FAILED to load!");
+			}
+
+			function setupTexture(texture, colorSpace, needsFlipY = false) {
+				if (!texture) return;
+				texture.colorSpace = colorSpace;
+				texture.flipY = needsFlipY;
+				texture.wrapS = THREE.RepeatWrapping;
+				texture.wrapT = THREE.RepeatWrapping;
+				texture.anisotropy = performanceSettings.anisotropy;
+				texture.needsUpdate = true;
+			}
+			setupTexture(diffuseMap, THREE.SRGBColorSpace);
+			setupTexture(pbrMap, THREE.LinearSRGBColorSpace);
+			setupTexture(normalMap, THREE.LinearSRGBColorSpace);
+			setupTexture(teamMap, THREE.LinearSRGBColorSpace);
+
+			material = new THREE.MeshStandardMaterial({
+				map: diffuseMap,
+				normalMap: normalMap,
+				normalScale: new THREE.Vector2(1, normalMapScaleY),
+				metalness: 1.0,
+				roughness: roughnessValue,
+				emissive: new THREE.Color(0x000000),
+				envMap: scene.environment,
+				envMapIntensity: envMapIntensityValue,
+				side: THREE.DoubleSide,
+				transparent: false,
+			});
+
+			// --- onBeforeCompile Shader (Using the logic from the user's original working script) ---
+			material.onBeforeCompile = (shader) => {
+				try {
+					// Uniform Assignments
+					shader.uniforms.pbrMap = { value: pbrMap };
+					shader.uniforms.teamColor = { value: teamColor };
+					shader.uniforms.teamMap = { value: teamMap };
+					shader.uniforms.pbrEmissiveIntensity = { value: pbrEmissiveIntensity };
+					shader.uniforms.time = timeUniform;
+
+					let vs = shader.vertexShader;
+					let fs = shader.fragmentShader;
+
+					// Precision and Varyings
+					if (!fs.startsWith("precision highp float;")) {
+						fs = "precision highp float;\n" + fs;
+					}
+					if (!vs.includes("varying vec2 vUv;")) vs = "varying vec2 vUv;\n" + vs;
+					if (!vs.includes("vUv = uv;")) vs = vs.replace("#include <uv_vertex>", `#include <uv_vertex>\n    vUv = uv;`);
+
+					// Add Uniform Declarations
+					let finalDeclarations = "";
+					if (!fs.includes("uniform sampler2D pbrMap;")) finalDeclarations += "uniform sampler2D pbrMap;\n";
+					if (!fs.includes("uniform vec3 teamColor;")) finalDeclarations += "uniform vec3 teamColor;\n";
+					if (!fs.includes("uniform sampler2D teamMap;")) finalDeclarations += "uniform sampler2D teamMap;\n";
+					if (!fs.includes("uniform float pbrEmissiveIntensity;")) finalDeclarations += "uniform float pbrEmissiveIntensity;\n";
+					if (!fs.includes("uniform float time;")) finalDeclarations += "uniform float time;\n";
+					if (!fs.includes("varying vec2 vUv;")) finalDeclarations += "varying vec2 vUv;\n";
+					// Add define for team map usage if texture exists
+					if (shader.uniforms.teamMap.value) {
+						finalDeclarations += "#define USE_TEAMMAP\n";
+					}
+					if (finalDeclarations) {
+						fs = fs.replace(/(precision highp float;\s*)/, `$1${finalDeclarations}`);
+					}
+
+					// PBR Sampling (Using original script's logic: Roughness B, Metalness G)
+					fs = fs.replace("#include <roughnessmap_fragment>", `float roughnessFactor = roughness; vec4 texelRoughness = texture2D( pbrMap, vUv ); roughnessFactor *= texelRoughness.b;`);
+					fs = fs.replace("#include <metalnessmap_fragment>", `float metalnessFactor = metalness; vec4 texelMetalness = texture2D( pbrMap, vUv ); metalnessFactor *= texelMetalness.g;`);
+
+					// Modify Diffuse Color (Using original script's logic)
+					const colorFragmentReplacement = `
+                            #include <color_fragment> // Get original diffuseColor calculation
+    
+                            #ifdef USE_TEAMMAP
+                                float S_teamMask = texture2D( teamMap, vUv ).r;
+                                float S_threshold = 0.35;
+                                float S_blendFactor = step(S_threshold, S_teamMask);
+                                float intensity = 0.75;
+                                vec3 targetColor = mix(diffuseColor.rgb, teamColor, intensity);
+                                diffuseColor.rgb = mix(diffuseColor.rgb, targetColor, S_blendFactor);
+                            #endif
+                        `;
+					fs = fs.replace("#include <color_fragment>", colorFragmentReplacement);
+
+					// Tonemapping Replacement (Using original script's logic)
+					const tonemappingReplacement = `
+                            // PBR Boost calculation
+                            vec3 S_pbrBoost = vec3(0.0);
+                            #ifdef USE_MAP
+                                float S_emissionAmount = texture2D( pbrMap, vUv ).r; // Emission Mask (Red)
+                                if (S_emissionAmount > 0.01) { // Optimization
+                                    const float S_dwellDuration = 1.0; const float S_transitionDuration = 1.5; const float S_cycleDuration = S_dwellDuration + S_transitionDuration;
+                                    const float S_pulseMin = 0.01; const float S_pulseMax = ${pulseMaxValue.toFixed(2)}; const float S_pulseRange = S_pulseMax - S_pulseMin; float S_timeInCycle = mod(time, S_cycleDuration);
+                                    float S_sineWave = sin(max(0.0, (S_timeInCycle - S_dwellDuration) / S_transitionDuration) * 3.14159); // Use PI constant
+                                    float S_transitionFactor = step(S_dwellDuration, S_timeInCycle) * S_sineWave; float S_pulseFactor = S_pulseMin + S_pulseRange * S_transitionFactor;
+                                    vec4 S_diffuseTexel = texture2D( map, vUv ); vec3 S_boostDiffuseLinear = pow( S_diffuseTexel.rgb, vec3( 2.2 ) ); // Use base diffuse texture for boost color base
+                                    S_pbrBoost = S_boostDiffuseLinear * S_emissionAmount * pbrEmissiveIntensity * S_pulseFactor;
+                                }
+                            #endif
+    
+                            // Combine outgoing light with PBR boost ONLY (totalEmissiveRadiance includes standard emissive)
+                            vec3 S_combinedLight = outgoingLight + totalEmissiveRadiance + S_pbrBoost;
+    
+                            // Apply tone mapping
+                            #ifdef USE_TONEMAPPING
+                                gl_FragColor.rgb = toneMapping( S_combinedLight );
+                            #else
+                                gl_FragColor.rgb = S_combinedLight;
+                            #endif
+                        `;
+					fs = fs.replace("#include <tonemapping_fragment>", tonemappingReplacement);
+
+					// Output Fragment (Using original script's logic)
+					fs = fs.replace("#include <output_fragment>", `#if defined( TONE_MAPPING ) /* Handled earlier */ #endif gl_FragColor.a = diffuseColor.a;`); // Ensure alpha is set
+
+					// Remove standard emissive map calculation as it's included in totalEmissiveRadiance
+					fs = fs.replace("#include <emissivemap_fragment>", "");
+
+					shader.vertexShader = vs;
+					shader.fragmentShader = fs;
+				} catch (e) {
+					console.error("onBeforeCompile Error:", e);
+					if (noticeElement) {
+						noticeElement.textContent = `Shader Error: ${e.message}`;
+						noticeElement.style.display = "block";
+					}
+				}
+			};
+
+			// --- Mesh Setup ---
+			modelScene = gltf.scene;
+			let meshFound = false;
+			modelScene.traverse((child) => {
+				if (child.isMesh) {
+					meshFound = true;
+					child.material = material;
+					const lcn = child.name.toLowerCase();
+					const hide = ["flare", "fire", "emit", "jam", "wake", "bow", "nano", "blink", "glow", "light", "heat"];
+					if (hide.some((k) => lcn.includes(k))) {
+						child.visible = false;
+						child.castShadow = false;
+						child.receiveShadow = false;
+					} else {
+						child.castShadow = true;
+						child.receiveShadow = true;
+						child.visible = true;
+					}
+				}
+			});
+			if (!meshFound) {
+				console.warn("No meshes found in GLTF!");
+			}
+
+			// --- Animation Setup ---
+			animations = gltf.animations;
+			if (animations && animations.length) {
+				mixer = new THREE.AnimationMixer(modelScene);
+				animations.forEach((clip) => {
+					const action = mixer.clipAction(clip);
+					animationActions[clip.name] = action;
+					if (clip.name === loopingAnimationName) {
+						action.setLoop(THREE.LoopRepeat);
+						action.clampWhenFinished = false;
+					} else {
+						action.setLoop(THREE.LoopOnce);
+						action.clampWhenFinished = true;
+					}
+				});
+				let initialAction = animationActions[loopingAnimationName];
+				if (!initialAction && animations.length > 0) {
+					initialAction = animationActions[animations[0].name];
+				}
+				if (initialAction) {
+					currentAction = initialAction;
+					currentAction.reset().play();
+					isPlayingAnimation = true;
+					if (animToggleButton) {
+						animToggleButton.style.display = "flex";
+					}
+				} else {
+					if (animToggleButton) animToggleButton.style.display = "none";
+				}
+			} else {
+				if (animToggleButton) animToggleButton.style.display = "none";
+			}
+
+			// --- Scene Centering & Ground ---
+			const box = new THREE.Box3().setFromObject(modelScene);
+			const center = box.getCenter(new THREE.Vector3());
+			const size = box.getSize(new THREE.Vector3());
+			modelScene.position.sub(center);
+			scene.add(modelScene);
+			const modelMaxDim = Math.max(size.x, size.y, size.z);
+			shadowCamSize = modelMaxDim * 1.5;
+			directionalLight.shadow.camera.left = -shadowCamSize;
+			directionalLight.shadow.camera.right = shadowCamSize;
+			directionalLight.shadow.camera.top = shadowCamSize;
+			directionalLight.shadow.camera.bottom = -shadowCamSize;
+			directionalLight.shadow.camera.updateProjectionMatrix();
+			const groundPlaneSize = modelMaxDim * 4.0;
+			if (groundMesh) scene.remove(groundMesh);
+			const groundGeometry = new THREE.PlaneGeometry(groundPlaneSize, groundPlaneSize);
+			const groundMaterial = new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.4 });
+			groundMesh = new THREE.Mesh(groundGeometry, groundMaterial);
+			groundMesh.rotation.x = -Math.PI / 2;
+			groundMesh.position.y = box.min.y - center.y;
+			groundMesh.receiveShadow = true;
+			scene.add(groundMesh);
+
+			// --- Camera Setup ---
+			const baseHorizontalDistance = Math.max(size.length() / 1.5, groundPlaneSize / 5);
+			const distanceMultiplier = 1.8;
+			const horizontalDistance = baseHorizontalDistance * distanceMultiplier;
+			const horizontalAngleRadians = Math.PI / -10;
+			const verticalAngleDegrees = 40;
+			const verticalAngleRadians = verticalAngleDegrees * (Math.PI / 180);
+			const xPos = horizontalDistance * Math.sin(horizontalAngleRadians);
+			const zPos = horizontalDistance * Math.cos(horizontalAngleRadians);
+			const yPos = horizontalDistance * Math.tan(verticalAngleRadians);
+			camera.position.set(xPos, yPos, zPos);
+			controls.target.set(0, 0, 0);
+			const totalDistance = Math.sqrt(horizontalDistance ** 2 + yPos ** 2);
+			camera.far = Math.max(totalDistance * 5, size.length() * 5, groundPlaneSize * 2);
+			camera.updateProjectionMatrix();
+			controls.update();
+
+			// --- Setup Effect Composer (Applying Mobile Optimizations) ---
+			composer = new EffectComposer(renderer);
+			renderPass = new RenderPass(scene, camera);
+			composer.addPass(renderPass);
+
+			const currentWidth = container.offsetWidth;
+			const currentHeight = container.offsetHeight;
+			const currentPixelRatio = renderer.getPixelRatio();
+
+			// SSAO Pass (Applying Mobile Optimizations)
+			if (performanceSettings.ssaoEnabled) {
+				ssaoPass = new SSAOPass(scene, camera, currentWidth, currentHeight);
+				ssaoPass.kernelRadius = performanceSettings.ssaoKernelRadius;
+				ssaoPass.kernelSize = performanceSettings.ssaoKernelSize;
+				ssaoPass.minDistance = 0.003;
+				ssaoPass.maxDistance = Math.max(5.5, modelMaxDim * 0.5);
+				if (ssaoPass.params && ssaoPass.params.saoIntensity !== undefined) {
+					ssaoPass.params.saoIntensity = 1.5;
+				} else if (ssaoPass.intensity !== undefined) {
+					ssaoPass.intensity = 5.5;
+				}
+				composer.addPass(ssaoPass);
+			}
+
+			// SMAA Pass
+			smaaPass = new SMAAPass(currentWidth * currentPixelRatio, currentHeight * currentPixelRatio);
+			composer.addPass(smaaPass);
+
+			// Output Pass
+			outputPass = new OutputPass();
+			composer.addPass(outputPass);
+
+			// Brightness/Contrast Pass
+			brightnessContrastPass = new ShaderPass(BrightnessContrastShader);
+			brightnessContrastPass.uniforms["brightness"].value = 0.04;
+			brightnessContrastPass.uniforms["contrast"].value = 0.12;
+			composer.addPass(brightnessContrastPass);
+
+			// --- Interaction Listeners ---
+			controls.addEventListener("start", () => {
+				isInteracting = true;
+				turntableActive = false;
+				if (idleTimer) clearTimeout(idleTimer);
+				idleTimer = null;
+			});
+			controls.addEventListener("end", () => {
+				isInteracting = false;
+				if (idleTimer) clearTimeout(idleTimer);
+				if (isTurntableEnabledByUser) {
+					idleTimer = setTimeout(() => {
+						if (isTurntableEnabledByUser && !isInteracting) {
+							turntableActive = true;
+						}
+						idleTimer = null;
+					}, idleTimeoutDuration);
+				}
+			});
+
+			let savedEventListeners = {};
+			function detachControlListeners() {
+				const el = controls.domElement;
+				if (!el || !el._listeners) return;
+				savedEventListeners = {};
+				const evts = ["contextmenu", "pointerdown", "pointermove", "pointerup", "touchstart", "touchmove", "touchend", "wheel", "keydown"];
+				evts.forEach((t) => {
+					if (el._listeners && el._listeners[t]) {
+						savedEventListeners[t] = [...el._listeners[t]];
+						savedEventListeners[t].forEach((lO) => {
+							const lF = typeof lO === "function" ? lO : lO.listener;
+							if (lF) el.removeEventListener(t, lF);
+						});
+					}
+				});
+			}
+			function attachControlListeners() {
+				const el = controls.domElement;
+				if (!el) return;
+				for (const t in savedEventListeners) {
+					if (savedEventListeners[t]) {
+						savedEventListeners[t].forEach((lO) => {
+							const lF = typeof lO === "function" ? lO : lO.listener;
+							if (lF) el.addEventListener(t, lF);
+						});
+					}
+				}
+				savedEventListeners = {};
+			}
+
+			window.addEventListener("keydown", (e) => {
+				if (e.code === "Space" && !isAltDown && !e.repeat) {
+					e.preventDefault();
+					toggleAnimation();
+				}
+				if (e.altKey) {
+					isAltDown = true;
+					if (!isEnvDragging) container.style.cursor = "move";
+				}
+			});
+			window.addEventListener("keyup", (e) => {
+				if (!e.altKey && isAltDown) {
+					isAltDown = false;
+					container.style.cursor = isEnvDragging ? "grabbing" : "grab";
+					if (isEnvDragging) {
+						isEnvDragging = false;
+						controls.enabled = true;
+						attachControlListeners();
+						container.classList.remove("grabbing");
+						container.style.cursor = "grab";
+						try {
+							const pUE = new PointerEvent("pointerup", { bubbles: true, cancelable: true, clientX: startMouseX, clientY: startMouseY, pointerId: 1 });
+							controls.domElement.dispatchEvent(pUE);
+						} catch (err) {
+							console.warn("Synthetic pointerup failed:", err);
+						}
+					}
+				}
+			});
+			container.addEventListener("pointerdown", (e) => {
+				if (isAltDown) {
+					e.preventDefault();
+					isEnvDragging = true;
+					startMouseX = e.clientX;
+					startMouseY = e.clientY;
+					controls.enabled = false;
+					detachControlListeners();
+					container.classList.add("grabbing");
+					container.style.cursor = "grabbing";
+					try {
+						container.setPointerCapture(e.pointerId);
+					} catch (err) { }
+				}
+			});
+			container.addEventListener("pointermove", (e) => {
+				if (isEnvDragging && lightGroup) {
+					const dX = e.clientX - startMouseX;
+					const dY = e.clientY - startMouseY;
+					lightGroup.rotation.y += dX * (envRotationSpeed / container.clientWidth);
+					const nRX = lightGroup.rotation.x + dY * (envRotationSpeed / container.clientHeight);
+					lightGroup.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, nRX));
+					startMouseX = e.clientX;
+					startMouseY = e.clientY;
+				}
+			});
+			const handleEnvDragEnd = (e) => {
+				if (isEnvDragging) {
+					isEnvDragging = false;
+					controls.enabled = true;
+					attachControlListeners();
+					container.classList.remove("grabbing");
+					container.style.cursor = isAltDown ? "move" : "grab";
+					try {
+						container.releasePointerCapture(e.pointerId);
+					} catch (err) { }
+				}
+			};
+			container.addEventListener("pointerup", handleEnvDragEnd);
+			container.addEventListener("pointerleave", handleEnvDragEnd);
+			container.addEventListener("lostpointercapture", handleEnvDragEnd);
+
+			if (isTurntableEnabledByUser) {
+				turntableActive = true;
+			}
+
+			function toggleAnimation() {
+				if (!mixer || !currentAction) return;
+				currentAction.paused = !currentAction.paused;
+				isPlayingAnimation = !currentAction.paused;
+				if (isPlayingAnimation) {
+					if (!currentAction.isRunning()) {
+						if (currentAction.loop === THREE.LoopOnce && currentAction.time === currentAction.getClip().duration) {
+							currentAction.reset().play();
+						} else {
+							currentAction.play();
+						}
+					}
+				}
+			}
+			if (animToggleButton) {
+				animToggleButton.addEventListener("click", toggleAnimation);
+			}
+			if (rotateToggleButton) {
+				rotateToggleButton.addEventListener("click", () => {
+					isTurntableEnabledByUser = !isTurntableEnabledByUser;
+					if (isTurntableEnabledByUser) {
+						if (!isInteracting) {
+							turntableActive = true;
+						}
+						if (idleTimer) clearTimeout(idleTimer);
+						idleTimer = null;
+					} else {
+						turntableActive = false;
+						if (idleTimer) clearTimeout(idleTimer);
+						idleTimer = null;
+					}
+				});
+			}
+
+			function exportHighResPNG(exportWidth, exportHeight) {
+				const origW = container.offsetWidth,
+					origH = container.offsetHeight,
+					origPR = renderer.getPixelRatio(),
+					origAsp = camera.aspect;
+				if (exportButton) {
+					exportButton.disabled = true;
+				}
+				requestAnimationFrame(() => {
+					try {
+						renderer.setPixelRatio(1);
+						renderer.setSize(exportWidth, exportHeight, false);
+						composer.setPixelRatio(1);
+						composer.setSize(exportWidth, exportHeight);
+						camera.aspect = exportWidth / exportHeight;
+						camera.updateProjectionMatrix();
+						if (ssaoPass && performanceSettings.ssaoEnabled) ssaoPass.setSize(exportWidth, exportHeight);
+						if (smaaPass && typeof smaaPass.setSize === "function") smaaPass.setSize(exportWidth, exportHeight); // Check if SMAA needs resize
+						composer.render();
+						const dataURL = renderer.domElement.toDataURL("image/png");
+						const link = document.createElement("a");
+						link.href = dataURL;
+						link.download = `${unitName || "model"}_export_${exportWidth}x${exportHeight}.png`;
+						document.body.appendChild(link);
+						link.click();
+						document.body.removeChild(link);
+					} catch (error) {
+						console.error("PNG Export Error:", error);
+						if (noticeElement) {
+							noticeElement.textContent = `Export Error: ${error.message}`;
+							noticeElement.style.display = "block";
+						} else {
+							alert("Error exporting PNG.");
+						}
+					} finally {
+						renderer.setPixelRatio(origPR);
+						renderer.setSize(origW, origH, false);
+						composer.setPixelRatio(origPR);
+						composer.setSize(origW, origH);
+						camera.aspect = origAsp;
+						camera.updateProjectionMatrix();
+						if (ssaoPass && performanceSettings.ssaoEnabled) ssaoPass.setSize(origW, origH);
+						if (smaaPass && typeof smaaPass.setSize === "function") smaaPass.setSize(origW * origPR, origH * origPR); // Restore SMAA size
+						if (exportButton) {
+							exportButton.disabled = false;
+						}
+						requestAnimationFrame(() => {
+							if (composer) composer.render();
+							else if (renderer) renderer.render(scene, camera);
+						});
+					}
+				});
+			}
+			if (exportButton) {
+				exportButton.addEventListener("click", () => {
+					const expW = 4096;
+					const aspect = container.offsetWidth / container.offsetHeight;
+					const expH = Math.round(expW / aspect);
+					exportHighResPNG(expW, expH);
+				});
+			}
+
+			// --- Animation Loop Variables ---
+			const clock = new THREE.Clock();
+			let animationFrameId = null;
+			let lastRenderTime = 0; // For FPS limiting
+			const fpsInterval = performanceSettings.targetFPS ? 1000 / performanceSettings.targetFPS : 0; // ms per frame
+
+			// --- Animation Loop ---
+			const animate = () => {
+				animationFrameId = requestAnimationFrame(animate); // Request next frame immediately
+
+				// --- FPS Limiting Logic ---
+				const now = performance.now();
+				const elapsed = now - lastRenderTime;
+
+				// If enough time has passed, draw the next frame
+				if (!fpsInterval || elapsed > fpsInterval) {
+					// Get ready for next frame by setting lastRenderTime=now, but also adjust for your
+					// specified fpsInterval not being a multiple of RAF's interval (often 16.7ms)
+					if (fpsInterval) {
+						lastRenderTime = now - (elapsed % fpsInterval);
+					}
+
+					// --- Get Delta Time for Updates ---
+					// IMPORTANT: Use clock.getDelta() for physics/animation updates
+					// It measures time since the *last call to getDelta*, ensuring
+					// consistent updates even if rendering is skipped.
+					const deltaTime = clock.getDelta();
+
+					// --- Update Section ---
+					timeUniform.value = clock.elapsedTime; // Update shader time uniform
+
+					// Rotate model if turntable is active
+					if (turntableActive && modelScene && !isInteracting && !isEnvDragging) {
+						modelScene.rotation.y += turntableSpeed * deltaTime;
+					}
+
+					// Update controls (handles damping)
+					if (!isEnvDragging) {
+						controls.update(); // Use internal clock of controls if damping is enabled
+					}
+
+					// Update animation mixer
+					if (mixer) {
+						mixer.update(deltaTime);
+					}
+
+					// --- Render Section ---
+					try {
+						if (composer) {
+							composer.render(deltaTime); // Pass deltaTime if needed by passes
+						} else if (renderer) {
+							renderer.render(scene, camera);
+						}
+					} catch (e) {
+						console.error("Render loop error:", e);
+						if (animationFrameId) cancelAnimationFrame(animationFrameId);
+						if (noticeElement) {
+							noticeElement.textContent = `Render Error: ${e.message}. Refresh.`;
+							noticeElement.style.display = "block";
+						}
+					}
+				}
+				// --- End FPS Limiting Check ---
+			};
+
+			// --- Resize Handler (Applying Mobile Optimizations) ---
+			const handleResize = () => {
+				const w = container.offsetWidth,
+					h = container.offsetHeight;
+				if (w > 0 && h > 0) {
+					const can = renderer.domElement;
+					const newPixelRatio = performanceSettings.pixelRatioCap; // Use capped ratio
+
+					if (can.width === w && can.height === h && renderer.getPixelRatio() === newPixelRatio) return;
+
+					camera.aspect = w / h;
+					camera.updateProjectionMatrix();
+					renderer.setPixelRatio(newPixelRatio);
+					renderer.setSize(w, h);
+					composer.setPixelRatio(newPixelRatio);
+					composer.setSize(w, h);
+
+					// Update passes
+					if (ssaoPass && performanceSettings.ssaoEnabled) ssaoPass.setSize(w, h);
+					if (smaaPass) {
+						// SMAAPass size is set in pixels, needs update
+						smaaPass.setSize(w * newPixelRatio, h * newPixelRatio);
+					}
+				}
+			};
+			const resizeObserver = new ResizeObserver(handleResize);
+			resizeObserver.observe(container);
+			handleResize(); // Initial call
+			animate(); // Start loop
+		})
+		.catch((error) => {
+			console.error("Fatal Error loading/setup:", error);
+
+			// Hide the model container
+			if (container) {
+				container.style.display = "none";
+				container.innerHTML = "";
+			}
+
+			// Show error notice
+			if (noticeElement) {
+				noticeElement.textContent = `Model could not be loaded.`;
+				noticeElement.style.display = "block";
+			}
+
+			// ✅ Hide the three.js block if model failed to load
+			const threeBlock = document.querySelector(".threeblock");
+			if (threeBlock) threeBlock.style.display = "none";
+
+			// ✅ Show the fallback image block
+			const fallbackImageBlock = document.querySelector(".flex-unit-detail-img");
+			if (fallbackImageBlock) fallbackImageBlock.style.display = "block";
+		});
+});

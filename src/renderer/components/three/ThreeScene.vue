@@ -17,7 +17,6 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { modelFiles } from "@renderer/assets/assetFiles";
 import Panel from "@renderer/components/common/Panel.vue";
-import { textureLoad } from "three/src/nodes/TSL.js";
 
 const props = defineProps<{
     modelPath: string;
@@ -73,12 +72,12 @@ function generateScene() {
         texture.flipY = false;
         material.normalMap = texture;
     });
-	texLoader.load(props.otherMap, function (texture) {
-		texture.colorSpace = THREE.SRGBColorSpace;
-		texture.flipY = false;
-		material.metalnessMap = texture;
-		material.roughnessMap = texture;
-	});
+    texLoader.load(props.otherMap, function (texture) {
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.flipY = false;
+        material.metalnessMap = texture;
+        material.roughnessMap = texture;
+    });
     modelLoader.load(
         props.modelPath,
         function (gltf) {
@@ -120,9 +119,9 @@ function generateScene() {
 }
 
 function resetScene() {
-	// TODO: Make sure we don't have memory leaks, especially with textures/materials
-	scene.clear();
-	generateScene();
+    // TODO: Make sure we don't have memory leaks, especially with textures/materials
+    scene.clear();
+    generateScene();
 }
 
 function animate() {
@@ -136,7 +135,7 @@ function animate() {
 
 onMounted(() => {
     scene_container.value.appendChild(renderer.domElement);
-	generateScene();
+    generateScene();
     animate();
 });
 </script>

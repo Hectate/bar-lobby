@@ -26,10 +26,10 @@ export const unitsStore = reactive<{
 // Appropriate texture maps per faction
 const factionTextures = {
     arm: {
-        color: modelFiles["./models/arm/arm_color_blue.png"],
+        color: modelFiles["./models/arm/arm_color.png"],
         normal: modelFiles["./models/arm/arm_normal.png"],
         team: modelFiles["./models/arm/arm_team.png"],
-        other: modelFiles["./models/arm/arm_other_modified.png"],
+        other: modelFiles["./models/arm/arm_other.png"],
     },
     cor: {
         color: modelFiles["./models/cor/cor_color.png"],

@@ -13,14 +13,14 @@ SPDX-License-Identifier: MIT
         <h1>{{ route.meta.title }}</h1>
         <Select v-model="selectedUnit" :options="allUnits" :optionLabel="'name'" filter> </Select>
         <div class="flex flex-row flex-center-content">
-            <ThreeScene
+            <UnitScene
                 :modelPath="selectedUnit.modelPath"
                 :faction="selectedUnit.faction"
                 :colorMap="selectedUnit.textureMaps.color"
                 :normalMap="selectedUnit.textureMaps.normal"
                 :teamMap="selectedUnit.textureMaps.team"
                 :otherMap="selectedUnit.textureMaps.other"
-            ></ThreeScene>
+            ></UnitScene>
         </div>
         <Markdown
             source="
@@ -39,6 +39,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import Markdown from "@renderer/components/misc/Markdown.vue";
 import ThreeScene from "@renderer/components/three/ThreeScene.vue";
+import UnitScene from "@renderer/components/three/UnitScene.vue";
 import Select from "@renderer/components/controls/Select.vue";
 import { unitsStore } from "@renderer/store/units.store";
 
