@@ -17,6 +17,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { modelFiles } from "@renderer/assets/assetFiles";
 import Panel from "@renderer/components/common/Panel.vue";
+import { textureLoad } from "three/src/nodes/TSL.js";
 
 const props = defineProps<{
     modelPath: string;
@@ -30,7 +31,7 @@ const props = defineProps<{
 watch(
     () => props.modelPath,
     (newString, oldString) => {
-        console.log("The modelPath changed from ", oldString, " to ", newString);
+        console.debug("The modelPath changed from ", oldString, " to ", newString);
         resetScene();
     }
 );
@@ -55,7 +56,6 @@ function generateScene() {
 
     const texLoader = new THREE.TextureLoader();
     let material: THREE.MeshStandardMaterial = new THREE.MeshStandardMaterial();
-
     texLoader.load(
         props.colorMap,
         function (texture) {
@@ -73,6 +73,12 @@ function generateScene() {
         texture.flipY = false;
         material.normalMap = texture;
     });
+	texLoader.load(props.otherMap, function (texture) {
+		texture.colorSpace = THREE.SRGBColorSpace;
+		texture.flipY = false;
+		material.metalnessMap = texture;
+		material.roughnessMap = texture;
+	});
     modelLoader.load(
         props.modelPath,
         function (gltf) {
