@@ -55,7 +55,7 @@ export function initUnitsStore() {
         const name = filePath.split("/").pop()?.split(".")[0] || "";
         const unit: Unit = {
             name: name,
-            modelPath: filePath,
+            modelPath: modelFiles[filePath],
             faction: unitFaction as Unit["faction"],
             textureMaps: factionTextures[unitFaction],
         };

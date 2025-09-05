@@ -11,9 +11,16 @@ SPDX-License-Identifier: MIT
 <template>
     <div>
         <h1>{{ route.meta.title }}</h1>
-        <Select v-model="selectedUnit" :options="allUnits" :optionLabel="'name'"> </Select>
+        <Select v-model="selectedUnit" :options="allUnits" :optionLabel="'name'" filter> </Select>
         <div class="flex flex-row flex-center-content">
-            <ThreeScene></ThreeScene>
+            <ThreeScene
+                :modelPath="selectedUnit.modelPath"
+                :faction="selectedUnit.faction"
+                :colorMap="selectedUnit.textureMaps.color"
+                :normalMap="selectedUnit.textureMaps.normal"
+                :teamMap="selectedUnit.textureMaps.team"
+                :otherMap="selectedUnit.textureMaps.other"
+            ></ThreeScene>
         </div>
         <Markdown
             source="
@@ -38,8 +45,8 @@ import { unitsStore } from "@renderer/store/units.store";
 const router = useRouter();
 const route = router.currentRoute.value;
 
-const selectedUnit = ref();
 const allUnits = ref(unitsStore.units);
+const selectedUnit = ref(allUnits.value[47]);
 //console.log(allUnits)
 </script>
 
