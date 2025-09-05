@@ -11,8 +11,9 @@ SPDX-License-Identifier: MIT
 <template>
     <div>
         <h1>{{ route.meta.title }}</h1>
+        <Select v-model="selectedUnit" :options="allUnits" :optionLabel="'name'"> </Select>
         <div class="flex flex-row flex-center-content">
-            <ThreeScene></ThreeScene><ThreeScene></ThreeScene>
+            <ThreeScene></ThreeScene>
         </div>
         <Markdown
             source="
@@ -27,12 +28,19 @@ SPDX-License-Identifier: MIT
 </template>
 
 <script lang="ts" setup>
+import { ref } from "vue";
 import { useRouter } from "vue-router";
 import Markdown from "@renderer/components/misc/Markdown.vue";
 import ThreeScene from "@renderer/components/three/ThreeScene.vue";
+import Select from "@renderer/components/controls/Select.vue";
+import { unitsStore } from "@renderer/store/units.store";
 
 const router = useRouter();
 const route = router.currentRoute.value;
+
+const selectedUnit = ref();
+const allUnits = ref(unitsStore.units);
+//console.log(allUnits)
 </script>
 
 <style lang="scss" scoped></style>

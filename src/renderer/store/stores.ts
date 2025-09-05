@@ -12,6 +12,7 @@ import { initMeStore } from "@renderer/store/me.store";
 import { initSettingsStore } from "@renderer/store/settings.store";
 import { initTachyonStore } from "@renderer/store/tachyon.store";
 import { initUsersStore } from "@renderer/store/users.store";
+import { initUnitsStore } from "@renderer/store/units.store";
 
 export async function initPreMountStores() {
     await Promise.all([
@@ -23,5 +24,6 @@ export async function initPreMountStores() {
         initTachyonStore().then(initializeMatchmakingStore),
         initUsersStore(),
         initMeStore(),
+        initUnitsStore(),
     ]);
 }
