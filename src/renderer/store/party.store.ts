@@ -2,37 +2,37 @@
 //
 // SPDX-License-Identifier: MIT
 
-//import { me } from "@renderer/store/me.store";
-import { PartyInvitedEventData, PartyRemovedEventData, PartyUpdatedEventData, PartyId, UserId, UnixTime, PartyState } from "tachyon-protocol/types";
+import { me } from "@renderer/store/me.store";
+import { PartyInvitedEventData, PartyRemovedEventData, PartyUpdatedEventData, PartyId, UserId, PartyState } from "tachyon-protocol/types";
 import { reactive } from "vue";
+
+export enum PartyStatus {
+    None = "None",
+    InvitedOnly = "InvitedOnly",
+    JoinedOnly = "Joined",
+    JoinedAndInvited = "JoinedAndInvited",
+}
 
 export const partyStore = reactive<{
     isInitialized: boolean;
     errorMessage: string | null;
-    partyState: PartyState | null;
-    members: PartyMember[];
-    inviteList: InvitedUser[];
+    partyId: PartyId | null; //Our active party
+    parties: PartyState[]; //All parties (all invited, and up to one joined)
+    // Some reactive booleans for the UI to use
+    state: PartyStatus;
 }>({
     isInitialized: false,
     errorMessage: null,
-    partyState: null,
-    members: [],
-    inviteList: [],
+    partyId: null,
+    parties: [],
+    state: PartyStatus.None,
 });
-
-interface PartyMember {
-    userId: UserId;
-    joinedAt: UnixTime;
-}
-interface InvitedUser {
-    userId: UserId;
-    invitedAt: UnixTime;
-}
 
 async function sendAcceptInviteRequest(partyId: PartyId) {
     try {
         const response = await window.tachyon.request("party/acceptInvite", { partyId: partyId });
         console.log("Tachyon: party/acceptInvite response:", response);
+        me.partyId = partyStore.partyId = partyId; //TODO: Likely better the have the me.store.ts access the party ID here instead of in there.
     } catch (error) {
         console.error("Tachyon error: party/acceptInvite:", error);
         partyStore.errorMessage = "Error: party/acceptInvite failed";
@@ -53,6 +53,7 @@ async function sendCreateRequest() {
     try {
         const response = await window.tachyon.request("party/create");
         console.log("Tachyon: party/create:", response);
+        partyStore.partyId = response.data.partyId;
     } catch (error) {
         console.error("Tachyon error: party/create:", error);
         partyStore.errorMessage = "Error: party/create failed";
