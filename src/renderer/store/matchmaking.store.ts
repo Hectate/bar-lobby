@@ -8,6 +8,7 @@ import {
     MatchmakingFoundEventData,
     MatchmakingFoundUpdateEventData,
     MatchmakingListOkResponseData,
+    //MatchmakingQueueRequestData,
     MatchmakingQueuesJoinedEventData,
     MatchmakingQueueUpdateEventData,
 } from "tachyon-protocol/types";
@@ -69,6 +70,8 @@ function onFoundUpdateEvent(data: MatchmakingFoundUpdateEventData) {
     matchmakingStore.playersReady = data.readyCount;
 }
 
+// FIXME: Need to add logic to respond correctly to the various data.reason possibilities.
+// reason: "intentional" | "server_error" | "party_user_left" | "ready_timeout" | "version_changed"
 function onCancelledEvent(data: MatchmakingCancelledEventData) {
     console.log("Tachyon event: matchmaking/cancelled:", data);
     matchmakingStore.status = MatchmakingStatus.Idle;
@@ -77,11 +80,9 @@ function onCancelledEvent(data: MatchmakingCancelledEventData) {
 function onFoundEvent(data: MatchmakingFoundEventData) {
     console.log("Tachyon event: matchmaking/found:", data);
     matchmakingStore.status = MatchmakingStatus.MatchFound;
-    // Per spec, we have 10 seconds to send the ``matchmaking/ready`` request or we get cancelled from queue.
+    // Per spec, we have data.timeoutMs (expect 10 seconds) to send the ``matchmaking/ready`` request or we get cancelled from queue.
     // Probably better to track this timer on the UI side because the user will either need to 'ready' or 'cancel'
     // and they need to know this. Plus the UI has to "pop up" because they need to respond to it.
-    // But we don't want to be "triggering" the UI from the store. Instead, we should add a watcher,
-    // and when this value updates to MatchFound we can start our timer. Probably want a progress bar "counting down" too.
 }
 
 function onQueuesJoinedEvent(data: MatchmakingQueuesJoinedEventData) {
@@ -145,10 +146,13 @@ async function sendQueueRequest() {
     matchmakingStore.status = MatchmakingStatus.JoinRequested; // Initial state, likely short-lived.
     try {
         matchmakingStore.errorMessage = null;
+        //FIXME: Matchmaking now requires the queues array to contain both the id:string and version:string properties as a combined object.
         const response = await window.tachyon.request("matchmaking/queue", { queues: [matchmakingStore.selectedQueue] });
         console.log("Tachyon: matchmaking/queue:", response.status);
         matchmakingStore.status = MatchmakingStatus.Searching;
     } catch (error) {
+        //FIXME: need to identify and handle the error types here:
+        // "version_mismatch" | "invalid_queue_specified" means we need to refresh the list
         console.error("Tachyon error: matchmaking/queue:", error);
         notificationsApi.alert({ text: "Tachyon error: matchmaking/queue", severity: "error" });
         matchmakingStore.errorMessage = "Error with matchmaking/queue";
