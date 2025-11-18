@@ -473,9 +473,9 @@
                     "editLobbyName": "Edit Lobby Name",
                     "gameVersion": "Game",
                     "engineVersion": "Engine",
-                    "startTheGame": "Start the game",
                     "gameIsStarting": "Game is starting...",
-                    "gameIsRunning": "Game is running"
+                    "gameIsRunning": "Game is running",
+                    "startTheGame": "Start the game"
                 },
                 "playerParticipant": {
                     "player": "Player",
