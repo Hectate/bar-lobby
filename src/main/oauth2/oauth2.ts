@@ -89,7 +89,7 @@ export async function authenticate(): Promise<TokenResponse> {
         const tokenUrl = createUrlWithQuerystring(tokenEndpoint, {
             grant_type: "authorization_code",
             client_id: OAUTH_CLIENT_ID,
-            scoe: OAUTH_SCOPE,
+            scope: OAUTH_SCOPE,
             code,
             code_verifier,
             redirect_uri,
@@ -174,7 +174,13 @@ export async function renewAccessToken(): Promise<TokenResponse> {
 let tokenRenewer;
 export function startTokenRenewer(interval: number) {
     stopTokenRenewer();
-    tokenRenewer = setInterval(renewAccessToken, interval);
+    tokenRenewer = setInterval(() => {
+        renewAccessToken().then((value) => {
+            accountService.saveRefreshToken(value.refreshToken);
+            accountService.saveToken(value.token);
+            log.info("Saved new tokens.");
+        });
+    }, interval);
 }
 
 export function stopTokenRenewer() {

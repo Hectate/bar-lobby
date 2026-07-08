@@ -48,10 +48,15 @@ const connecting = ref(false);
 const error = ref<string>();
 
 const hasCredentials = ref(false);
-onActivated(() => {
-    window.auth.hasCredentials().then((result) => {
-        hasCredentials.value = result;
-    });
+onActivated(async () => {
+    hasCredentials.value = await window.auth.hasCredentials();
+
+    if (router.currentRoute.value.query.login === "true") {
+        const query = { ...router.currentRoute.value.query };
+        delete query.login;
+        await router.replace({ path: "/", query });
+        await login();
+    }
 });
 
 async function login() {
@@ -60,7 +65,8 @@ async function login() {
         connecting.value = true;
         await auth.login();
         await tachyon.connect();
-        router.push("/play");
+        const redirect = router.currentRoute.value.query.redirect as string | undefined;
+        router.push(redirect || "/play");
     } catch (e) {
         console.error(e);
         error.value = (e as Error).message;

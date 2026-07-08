@@ -90,7 +90,7 @@ import { useTypedI18n } from "@renderer/i18n";
 import BattlePreviewParticipant from "@renderer/components/battle/BattlePreviewParticipant.vue";
 import { Replay } from "@main/content/replays/replay";
 import ReplayPreviewMap from "@renderer/components/maps/ReplayPreviewMap.vue";
-import { DemoModel } from "$/sdfz-demo-parser";
+import type { DemoModel } from "sdfz-demo-parser";
 import TabView from "@renderer/components/common/TabView.vue";
 import TabPanel from "primevue/tabpanel";
 
@@ -118,11 +118,11 @@ const teams = computed<Map<number, (DemoModel.Info.Player | DemoModel.Info.AI)[]
 const extraDetails = computed(() => {
     return [
         {
-            title: "Engine Version",
+            title: t("lobby.components.battle.replayPreview.engineVersion"),
             data: props.replay.engineVersion,
         },
         {
-            title: "Game Version",
+            title: t("lobby.components.battle.replayPreview.gameVersion"),
             data: props.replay.gameVersion,
         },
     ];

@@ -83,14 +83,15 @@ const maps = useDexieLiveQueryWithDeps([searchVal, sortMethod, limit, filters], 
     const { terrain, gameType } = filters;
     const terrainFilters = new Set([...(<Terrain[]>Object.keys(terrain)).filter((key) => !!terrain[key]).map((k) => k)]);
     const gameTypeFilters = new Set([...(<GameType[]>Object.keys(gameType)).filter((key) => gameType[key]).map((k) => k)]);
+
     return db.maps
         .filter((map) => {
             const favorites = !filters.favoritesOnly || map.isFavorite;
             const downloaded = !filters.downloadedOnly || map.isInstalled;
             return Boolean(
                 map.displayName.toLocaleLowerCase().includes(searchVal.value.toLocaleLowerCase()) &&
-                    filters.minPlayers < map.playerCountMax &&
-                    filters.maxPlayers > map.playerCountMax &&
+                    filters.minPlayers <= map.playerCountMax &&
+                    filters.maxPlayers >= map.playerCountMax &&
                     (terrainFilters.size === 0 || terrainFilters.isSubsetOf(new Set([...map.terrain]))) &&
                     (gameTypeFilters.size === 0 || !gameTypeFilters.isDisjointFrom(new Set([...map.tags]))) &&
                     favorites &&

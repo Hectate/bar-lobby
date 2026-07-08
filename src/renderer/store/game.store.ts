@@ -6,8 +6,9 @@ import { GameVersion } from "@main/content/game/game-version";
 import { LuaOption } from "@main/content/game/lua-options";
 import { Replay } from "@main/content/replays/replay";
 import { BattleWithMetadata } from "@main/game/battle/battle-types";
-import { db } from "@renderer/store/db";
+import { notificationsApi } from "@renderer/api/notifications";
 import { reactive, watch } from "vue";
+import { matchmakingStore, MatchmakingStatus } from "./matchmaking.store";
 
 export enum GameStatus {
     LOADING,
@@ -20,17 +21,20 @@ export const gameStore: {
     status: GameStatus;
     selectedGameVersion?: GameVersion;
     optionsMap?: Record<string, LuaOption & { section: string }>;
+    availableGameVersions: Map<string, GameVersion>;
 } = reactive({
     isInitialized: false,
     status: GameStatus.CLOSED,
+    availableGameVersions: new Map(),
 });
 
 async function refreshStore() {
-    await db.gameVersions.clear();
     const installedVersions = await window.game.getInstalledVersions();
-    await db.gameVersions.bulkPut(installedVersions);
-    const latestGameVersion = await db.gameVersions.orderBy("gameVersion").last();
-    gameStore.selectedGameVersion = latestGameVersion;
+    for (const version of installedVersions) {
+        gameStore.availableGameVersions.set(version.gameVersion, version);
+        // The last version provided is always the default "selected" version.
+        gameStore.selectedGameVersion = version;
+    }
 }
 
 watch(
@@ -50,9 +54,20 @@ watch(
     }
 );
 
-export async function downloadGame(version: string) {
-    await window.game.downloadGame(version);
+export async function refreshGameStore() {
+    gameStore.availableGameVersions.clear();
+    gameStore.selectedGameVersion = undefined;
     await refreshStore();
+}
+
+export async function downloadGame(version: string) {
+    try {
+        await window.game.downloadGame(version);
+        await refreshStore();
+    } catch (error) {
+        console.error(`DownloadGame for ${version} failed:`, error);
+        notificationsApi.alert({ text: "Game download failed.", severity: "error" });
+    }
 }
 
 export async function startBattle(battle: BattleWithMetadata) {
@@ -63,7 +78,7 @@ export async function startBattle(battle: BattleWithMetadata) {
     } catch (error) {
         console.error("Failed to start battle:", error);
         gameStore.status = GameStatus.CLOSED;
-        throw error; // Re-throw the error to display it in the UI
+        notificationsApi.alert({ text: "startBattle failed", severity: "error" });
     }
 }
 
@@ -75,7 +90,7 @@ export async function watchReplay(replay: Replay) {
     } catch (error) {
         console.error("Failed to watch replay:", error);
         gameStore.status = GameStatus.CLOSED;
-        throw error; // Re-throw the error to display it in the UI
+        notificationsApi.alert({ text: "watchReplay failed", severity: "error" });
     }
 }
 
@@ -86,6 +101,10 @@ export async function initGameStore() {
         console.debug("Received game download completed event", downloadInfo);
         await refreshStore();
     });
+    window.downloads.onDownloadGameFail(async (downloadInfo) => {
+        console.error("Game download failed", downloadInfo);
+        await refreshStore();
+    });
     window.game.onGameLaunched(() => {
         console.debug("Game loaded");
         gameStore.status = GameStatus.RUNNING;
@@ -93,6 +112,9 @@ export async function initGameStore() {
     window.game.onGameClosed(() => {
         console.debug("Game closed");
         gameStore.status = GameStatus.CLOSED;
+        if (matchmakingStore.status !== MatchmakingStatus.Idle) {
+            matchmakingStore.status = MatchmakingStatus.Idle;
+        }
     });
     gameStore.isInitialized = true;
 }
