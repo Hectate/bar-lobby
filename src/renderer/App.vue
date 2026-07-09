@@ -13,7 +13,8 @@ SPDX-License-Identifier: MIT
             <DebugSidebar v-if="settingsStore.devMode" />
         </Suspense>
         <StickyBattle v-if="state === 'default'" />
-        <Background :blur="blurBg" />
+        <!-- <Background :blur="blurBg" /> -->
+        <ThreeBackground v-if="state === 'default'" />
         <Notifications v-if="state === 'default'" />
         <PromptContainer v-if="state === 'default'" />
         <NavBar :class="{ hidden: empty || state === 'initial-setup' }" />
@@ -66,6 +67,7 @@ import { useRouter } from "vue-router";
 import StickyBattle from "@renderer/components/battle/StickyBattle.vue";
 import Loader from "@renderer/components/common/Loader.vue";
 import Background from "@renderer/components/misc/Background.vue";
+import ThreeBackground from "@renderer/components/misc/ThreeBackground.vue";
 import DebugSidebar from "@renderer/components/misc/DebugSidebar.vue";
 import Error from "@renderer/components/misc/Error.vue";
 import IntroVideo from "@renderer/components/misc/IntroVideo.vue";
