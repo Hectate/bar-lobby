@@ -170,14 +170,15 @@ function generateScene() {
     // --- Variables ---
     let material, groundMesh;
     const idleTimeoutDuration = 3000;
-    let isAltDown = false,
-        startMouseX = 0,
-        startMouseY = 0;
-    const envRotationSpeed = 4;
+    // let isAltDown = false,
+    //     startMouseX = 0,
+    //     startMouseY = 0;
+    // const envRotationSpeed = 4;
     let renderPass, ssaoPass, smaaPass, brightnessContrastPass, outputPass;
     let animations: THREE.AnimationClip[] = [],
         animationActions = {},
         currentAction = null,
+        /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
         isPlayingAnimation = false;
     const loopingAnimationName = "walk";
 
@@ -202,6 +203,7 @@ function generateScene() {
         textureLoader.loadAsync(teamURL),
         gltfLoader.loadAsync(modelURL),
     ])
+        /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
         .then(([envResult, diffuseMap, pbrMap, normalMap, teamMap, gltf]) => {
             if (!gltf || !gltf.scene) {
                 throw new Error("GLTF model data missing after load.");
@@ -445,7 +447,7 @@ function generateScene() {
 
             const currentWidth = scene_container.value.offsetWidth;
             const currentHeight = scene_container.value.offsetHeight;
-            const currentPixelRatio = renderer.getPixelRatio();
+            // const currentPixelRatio = renderer.getPixelRatio();
 
             // SSAO Pass (Applying Mobile Optimizations)
             if (performanceSettings.ssaoEnabled) {
@@ -488,7 +490,7 @@ function generateScene() {
                 isInteracting = false;
                 if (idleTimer) clearTimeout(idleTimer);
                 if (isTurntableEnabledByUser) {
-					//@ts-expect-error idleTimer will not be null?
+                    //@ts-expect-error idleTimer will not be null?
                     idleTimer = setTimeout(() => {
                         if (isTurntableEnabledByUser && !isInteracting) {
                             turntableActive = true;

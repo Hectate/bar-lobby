@@ -11,7 +11,7 @@ SPDX-License-Identifier: MIT
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, onMounted } from "vue";
+import { ref, onMounted } from "vue";
 // import * as THREE from "three";
 
 const scene_container = ref();
@@ -20,6 +20,7 @@ import * as THREE from "three";
 
 // import Stats from "three/addons/libs/stats.module.js";
 
+/*eslint-disable @typescript-eslint/no-unused-vars */
 let container, stats;
 
 let camera, scene, renderer;
@@ -52,7 +53,7 @@ function init() {
     canvas.height = 128;
 
     const context = canvas.getContext("2d");
-    const gradient = context.createRadialGradient(
+    const gradient = context!.createRadialGradient(
         canvas.width / 2,
         canvas.height / 2,
         0,
@@ -63,8 +64,8 @@ function init() {
     gradient.addColorStop(0.1, "rgba(210,210,210,1)");
     gradient.addColorStop(1, "rgba(255,255,255,1)");
 
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, canvas.width, canvas.height);
+    context!.fillStyle = gradient;
+    context!.fillRect(0, 0, canvas.width, canvas.height);
 
     const shadowTexture = new THREE.CanvasTexture(canvas);
 
@@ -96,7 +97,7 @@ function init() {
 
     const count = geometry1.attributes.position.count;
     const arrayType = typeof Float16Array !== "undefined" ? Float16Array : Float32Array;
-    geometry1.setAttribute("color", new THREE.BufferAttribute(new arrayType(count * 3), 3));
+    geometry1.setAttribute("color", new THREE.BufferAttribute(new arrayType(count * 3) as Float32Array, 3));
 
     const geometry2 = geometry1.clone();
     const geometry3 = geometry1.clone();

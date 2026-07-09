@@ -38,7 +38,7 @@ SPDX-License-Identifier: MIT
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import Markdown from "@renderer/components/misc/Markdown.vue";
-import ThreeScene from "@renderer/components/three/ThreeScene.vue";
+// import ThreeScene from "@renderer/components/three/ThreeScene.vue";
 import UnitScene from "@renderer/components/three/UnitScene.vue";
 import Select from "@renderer/components/controls/Select.vue";
 import { unitsStore } from "@renderer/store/units.store";

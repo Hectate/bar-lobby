@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: MIT
 
-import { db } from "@renderer/store/db";
 import { reactive } from "vue";
 import { modelFiles } from "@renderer/assets/assetFiles";
 import { Unit } from "@renderer/model/unit";
