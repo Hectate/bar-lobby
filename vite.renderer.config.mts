@@ -39,4 +39,5 @@ export default defineConfig({
         }),
         vue(),
     ],
+    assetsInclude: ["**/*.glb", "**/*.png"],
 });

@@ -113,12 +113,14 @@ app.whenReady().then(async () => {
             "style-src": ["'self'", "'unsafe-inline'"],
             "img-src": ["'self'", "blob:", "data:"],
             "media-src": ["'self'", "data:"],
+            "connect-src": ["'self'", "blob:", "data:"],
         };
         // Those additional rules are needed when vue dev tools are injected.
         if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
             csp["img-src"].push("https://vue-i18n.intlify.dev/");
             csp["script-src"] = ["'self'", "'unsafe-inline'"];
             csp["font-src"] = ["'self'", "https://fonts.gstatic.com/"];
+            csp["connect-src"].push("ws://localhost:*");
         }
         const cspHeader = Object.entries(csp)
             .map(([k, v]) => [k, ...v].join(" "))

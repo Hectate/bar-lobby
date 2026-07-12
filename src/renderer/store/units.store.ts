@@ -5,10 +5,12 @@
 import { reactive } from "vue";
 import { modelFiles } from "@renderer/assets/assetFiles";
 import { Unit } from "@renderer/model/unit";
+import { ThreeModel } from "@renderer/model/threemodel";
 
 export const unitsStore = reactive<{
     isInitialized: boolean;
     units: Array<Unit>;
+    others: Array<ThreeModel>;
     filters: {
         faction: string;
         name: string;
@@ -20,6 +22,7 @@ export const unitsStore = reactive<{
         faction: "",
         name: "",
     },
+    others: [],
 });
 
 // Appropriate texture maps per faction
@@ -50,15 +53,22 @@ export function initUnitsStore() {
     for (const filePath in modelFiles) {
         const fileExt = filePath.split("/").pop()?.split(".")[1] || "";
         if (fileExt != "glb") continue; // Not a model file, skip it
-        const unitFaction = filePath.split("/")[2]; //relies on directory structure "./model/[faction]/" to set faction
+        const unitFaction = filePath.split("/")[2]; //relies on directory structure "./models/[faction]/" to set faction
         const name = filePath.split("/").pop()?.split(".")[0] || "";
-        const unit: Unit = {
-            name: name,
-            modelPath: modelFiles[filePath],
-            faction: unitFaction as Unit["faction"],
-            textureMaps: factionTextures[unitFaction],
-        };
-        unitsStore.units.push(unit);
+        if (unitFaction === "others") {
+            unitsStore.others.push({
+                name: name,
+                modelPath: modelFiles[filePath],
+            });
+        } else {
+            const unit: Unit = {
+                name: name,
+                modelPath: modelFiles[filePath],
+                faction: unitFaction as Unit["faction"],
+                textureMaps: factionTextures[unitFaction],
+            };
+            unitsStore.units.push(unit);
+        }
     }
     //console.log(unitsStore.units);
     unitsStore.isInitialized = true;

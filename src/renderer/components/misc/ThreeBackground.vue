@@ -11,155 +11,96 @@ SPDX-License-Identifier: MIT
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted } from "vue";
-// import * as THREE from "three";
+import { ref, onMounted, watch } from "vue";
+import { useRoute } from "vue-router";
+import { unitsStore } from "@renderer/store/units.store";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { CubeTextureLoader } from "three";
+import { modelFiles } from "@renderer/assets/assetFiles";
+
+enum SceneStates {
+    LOGIN = "LOGIN",
+    MENU = "MENU",
+}
+
+const route = useRoute();
+watch(
+    () => route.path,
+    (newPath) => {
+        console.log(`new path: ${newPath}`);
+        if (newPath === "/") {
+            updateScene(SceneStates.LOGIN);
+        } else if (newPath.startsWith("/play")) {
+            updateScene(SceneStates.MENU);
+        }
+    }
+);
 
 const scene_container = ref();
+const gltfLoader = new GLTFLoader();
+const cubeTextureLoader = new CubeTextureLoader();
 
 import * as THREE from "three";
 
-// import Stats from "three/addons/libs/stats.module.js";
+let pivot: THREE.Group;
+let renderer, marsModel;
+let camera: THREE.Camera;
+let scene: THREE.Scene;
 
-/*eslint-disable @typescript-eslint/no-unused-vars */
-let container, stats;
-
-let camera, scene, renderer;
-
-let mouseX = 0,
-    mouseY = 0;
+const cameraTargetPosition = new THREE.Vector3(0, 2, 2);
+const LERP_FACTOR = 0.01;
 
 let windowHalfX = window.innerWidth / 2;
 let windowHalfY = window.innerHeight / 2;
 
-init();
-
 function init() {
-    container = scene_container.value;
-
-    camera = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 1, 10000);
-    camera.position.z = 1800;
-
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xffffff);
+    scene.background = new THREE.Color(0x111111);
+    const universalLight = new THREE.AmbientLight(0xffffff, 0.1);
+    scene.add(universalLight);
+
+    cubeTextureLoader
+        // .setPath(`./renderer/assets/models/others/`)
+        .loadAsync([
+            modelFiles[`./models/others/right.png`],
+            modelFiles[`./models/others/left.png`],
+            modelFiles[`./models/others/top.png`],
+            modelFiles[`./models/others/bot.png`],
+            modelFiles[`./models/others/front.png`],
+            modelFiles[`./models/others/back.png`],
+        ])
+        .then((textureCube) => {
+            scene.background = textureCube;
+        })
+        .catch((error) => {
+            console.error("Error loading skybox:", error);
+        });
+
+    pivot = new THREE.Group();
+    camera = new THREE.PerspectiveCamera(20, window.innerWidth / window.innerHeight, 1, 10000);
+    camera.position.set(cameraTargetPosition.x, cameraTargetPosition.y, cameraTargetPosition.z);
+    pivot.add(camera);
+    camera.rotation.set(0, THREE.MathUtils.degToRad(-10), 0);
+    pivot.rotation.set(THREE.MathUtils.degToRad(-33), 0, 0);
+    scene.add(pivot);
 
     const light = new THREE.DirectionalLight(0xffffff, 3);
-    light.position.set(0, 0, 1);
+    light.position.set(0, 0, 2);
     scene.add(light);
 
-    // shadow
-
-    const canvas = document.createElement("canvas");
-    canvas.width = 128;
-    canvas.height = 128;
-
-    const context = canvas.getContext("2d");
-    const gradient = context!.createRadialGradient(
-        canvas.width / 2,
-        canvas.height / 2,
-        0,
-        canvas.width / 2,
-        canvas.height / 2,
-        canvas.width / 2
-    );
-    gradient.addColorStop(0.1, "rgba(210,210,210,1)");
-    gradient.addColorStop(1, "rgba(255,255,255,1)");
-
-    context!.fillStyle = gradient;
-    context!.fillRect(0, 0, canvas.width, canvas.height);
-
-    const shadowTexture = new THREE.CanvasTexture(canvas);
-
-    const shadowMaterial = new THREE.MeshBasicMaterial({ map: shadowTexture });
-    const shadowGeo = new THREE.PlaneGeometry(300, 300, 1, 1);
-
-    let shadowMesh;
-
-    shadowMesh = new THREE.Mesh(shadowGeo, shadowMaterial);
-    shadowMesh.position.y = -250;
-    shadowMesh.rotation.x = -Math.PI / 2;
-    scene.add(shadowMesh);
-
-    shadowMesh = new THREE.Mesh(shadowGeo, shadowMaterial);
-    shadowMesh.position.y = -250;
-    shadowMesh.position.x = -400;
-    shadowMesh.rotation.x = -Math.PI / 2;
-    scene.add(shadowMesh);
-
-    shadowMesh = new THREE.Mesh(shadowGeo, shadowMaterial);
-    shadowMesh.position.y = -250;
-    shadowMesh.position.x = 400;
-    shadowMesh.rotation.x = -Math.PI / 2;
-    scene.add(shadowMesh);
-
-    const radius = 200;
-
-    const geometry1 = new THREE.IcosahedronGeometry(radius, 1);
-
-    const count = geometry1.attributes.position.count;
-    const arrayType = typeof Float16Array !== "undefined" ? Float16Array : Float32Array;
-    geometry1.setAttribute("color", new THREE.BufferAttribute(new arrayType(count * 3) as Float32Array, 3));
-
-    const geometry2 = geometry1.clone();
-    const geometry3 = geometry1.clone();
-
-    const color = new THREE.Color();
-    const positions1 = geometry1.attributes.position;
-    const positions2 = geometry2.attributes.position;
-    const positions3 = geometry3.attributes.position;
-    const colors1 = geometry1.attributes.color;
-    const colors2 = geometry2.attributes.color;
-    const colors3 = geometry3.attributes.color;
-
-    for (let i = 0; i < count; i++) {
-        color.setHSL((positions1.getY(i) / radius + 1) / 2, 1.0, 0.5, THREE.SRGBColorSpace);
-        colors1.setXYZ(i, color.r, color.g, color.b);
-
-        color.setHSL(0, (positions2.getY(i) / radius + 1) / 2, 0.5, THREE.SRGBColorSpace);
-        colors2.setXYZ(i, color.r, color.g, color.b);
-
-        color.setRGB(1, 0.8 - (positions3.getY(i) / radius + 1) / 2, 0, THREE.SRGBColorSpace);
-        colors3.setXYZ(i, color.r, color.g, color.b);
-    }
-
-    const material = new THREE.MeshPhongMaterial({
-        color: 0xffffff,
-        flatShading: true,
-        vertexColors: true,
-        shininess: 0,
+    let marsPath = unitsStore.others.find((model) => model.name === "mars");
+    gltfLoader.loadAsync(marsPath?.modelPath || "").then((gltf) => {
+        console.log(`Found model ${marsPath?.name}`);
+        marsModel = gltf.scene;
+        marsModel.scale.set(0.5, 0.5, 0.5);
+        scene.add(marsModel);
+        light.target = marsModel;
     });
-
-    const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true, transparent: true });
-
-    let mesh = new THREE.Mesh(geometry1, material);
-    let wireframe = new THREE.Mesh(geometry1, wireframeMaterial);
-    mesh.add(wireframe);
-    mesh.position.x = -400;
-    mesh.rotation.x = -1.87;
-    scene.add(mesh);
-
-    mesh = new THREE.Mesh(geometry2, material);
-    wireframe = new THREE.Mesh(geometry2, wireframeMaterial);
-    mesh.add(wireframe);
-    mesh.position.x = 400;
-    scene.add(mesh);
-
-    mesh = new THREE.Mesh(geometry3, material);
-    wireframe = new THREE.Mesh(geometry3, wireframeMaterial);
-    mesh.add(wireframe);
-    scene.add(mesh);
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setAnimationLoop(animate);
-    // container.appendChild(renderer.domElement);
-
-    // stats = new Stats();
-    // container.appendChild(stats.dom);
-
-    document.addEventListener("mousemove", onDocumentMouseMove);
-
-    //
 
     window.addEventListener("resize", onWindowResize);
 }
@@ -174,25 +115,25 @@ function onWindowResize() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function onDocumentMouseMove(event) {
-    mouseX = event.clientX - windowHalfX;
-    mouseY = event.clientY - windowHalfY;
-}
-
-//
-
 function animate() {
+    camera.position.lerp(cameraTargetPosition, LERP_FACTOR);
     render();
-    // stats.update();
 }
 
 function render() {
-    camera.position.x += (mouseX - camera.position.x) * 0.05;
-    camera.position.y += (-mouseY - camera.position.y) * 0.05;
-
-    camera.lookAt(scene.position);
-
+    pivot.rotation.y += 0.0005;
     renderer.render(scene, camera);
+}
+
+function updateScene(newState: string) {
+    switch (newState) {
+        case SceneStates.LOGIN:
+            cameraTargetPosition.set(0, 2, 2);
+            break;
+        case SceneStates.MENU:
+            cameraTargetPosition.set(0, 0, 2);
+            break;
+    }
 }
 
 onMounted(() => {
