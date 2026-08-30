@@ -153,11 +153,11 @@ function addTeam() {
     addCustomStartBox();
 }
 
-function addBot(ai: EngineAI | GameAI, teamId: number) {
+function addBot(ai: EngineAI | GameAI, teamId: string) {
     if (!battleStore.me) throw new Error("failed to access current player");
 
     battleStore.teams[teamId].participants.push({
-        id: participantId++,
+        id: String(participantId++),
         name: ai.name,
         aiOptions: {},
         aiShortName: ai.shortName,
@@ -169,10 +169,10 @@ function removeBot(bot: Bot) {
     removeFromTeams(bot);
 }
 
-function duplicateBot(bot: Bot, teamId: number) {
+function duplicateBot(bot: Bot, teamId: string) {
     const newBot = {
         ...bot,
-        id: participantId++,
+        id: String(participantId++),
     };
     battleStore.teams[teamId].participants.push(newBot);
 }
@@ -188,7 +188,7 @@ function updateBotOptions(bot: Bot, options: Record<string, unknown>) {
     bot.aiOptions = options;
 }
 
-function movePlayerToTeam(player: Player, teamId: number) {
+function movePlayerToTeam(player: Player, teamId: string) {
     removeFromTeams(player);
     removeFromSpectators(player);
     if (!battleStore.teams[teamId]) addTeam();
@@ -201,7 +201,7 @@ function movePlayerToSpectators(player: Player) {
     battleStore.spectators.push(player);
 }
 
-function moveBotToTeam(bot: Bot, teamId: number) {
+function moveBotToTeam(bot: Bot, teamId: string) {
     removeFromTeams(bot);
     if (!battleStore.teams[teamId]) addTeam();
     battleStore.teams[teamId].participants.push(bot);
@@ -383,7 +383,7 @@ function defaultBattle(engine?: EngineVersion, game?: GameVersion, map?: MapData
     };
 
     const mePlayer: Player = {
-        id: participantId++,
+        id: String(participantId++),
         user: me,
         name: me.username,
         contentSyncState: {
@@ -600,12 +600,12 @@ function addCoopAI(coopAI: "RaptorsAI" | "ScavengersAI") {
 
     const ai = gameStore.selectedGameVersion.ais.find((ai) => ai.shortName === coopAI);
 
-    if (ai) addBot(ai, 1);
+    if (ai) addBot(ai, "1");
 
     for (const participant of battleStore.teams[1].participants) {
         if (isPlayer(participant)) {
             if (battleStore.teams[0].participants.length < getMaxPlayersPerTeam()) {
-                movePlayerToTeam(participant, 0);
+                movePlayerToTeam(participant, "0");
             } else {
                 movePlayerToSpectators(participant);
             }
@@ -613,7 +613,7 @@ function addCoopAI(coopAI: "RaptorsAI" | "ScavengersAI") {
             if (isRaptor(participant) || isScavenger(participant)) continue;
 
             if (battleStore.teams[0].participants.length < getMaxPlayersPerTeam()) {
-                moveBotToTeam(participant, 0);
+                moveBotToTeam(participant, "0");
             } else {
                 removeBot(participant);
             }

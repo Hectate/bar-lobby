@@ -315,6 +315,7 @@ async function requestLeaveLobby() {
     clearUserSubscriptions();
     lobbyStore.activeLobby = undefined;
     chat.clearLobbyChat();
+    battleActions.resetToDefaultBattle();
 }
 
 /**
@@ -420,6 +421,7 @@ function onLobbyLeftEvent(data: LobbyLeftEventData) {
     clearUserSubscriptions();
     lobbyStore.activeLobby = undefined;
     chat.clearLobbyChat();
+    battleActions.resetToDefaultBattle();
     console.log("Tachyon event: lobby/left:", data);
     if (router.currentRoute.value.path == "/play/lobby") {
         // We use replace instead of push so the user can't use "back".

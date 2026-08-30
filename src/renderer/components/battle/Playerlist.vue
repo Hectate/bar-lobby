@@ -15,11 +15,21 @@ SPDX-License-Identifier: MIT
         @bot-selected="onBotSelected"
     />
     <div class="scroll-container padding-right-sm">
-        <div class="playerlist" :class="{ dragging: draggedBot || draggedPlayer }">
+        <div v-if="lobbyStore.activeLobby" class="playerlist">
+            <TeamComponent
+                v-for="(team, key, index) in lobbyStore.activeLobby != undefined ? lobbyStore.activeLobby.allyTeamConfig : {}"
+                :key="key"
+                :teamId="String(index)"
+                :teamKey="key as string"
+                @add-bot-clicked="openBotList(key as string)"
+                @on-join-clicked="joinTeam(key as string)"
+            />
+        </div>
+        <div v-else class="playerlist" :class="{ dragging: draggedBot || draggedPlayer }">
             <TeamComponent
                 v-for="(team, teamId) in battleWithMetadataStore.teams"
                 :key="teamId"
-                :teamId="teamId"
+                :teamId="String(teamId)"
                 @add-bot-clicked="openBotList"
                 @on-join-clicked="joinTeam"
                 @on-drag-start="dragStart"
@@ -53,23 +63,24 @@ import { Bot, isBot, isRaptor, isScavenger, Player } from "@main/game/battle/bat
 import { battleWithMetadataStore, battleStore, battleActions } from "@renderer/store/battle.store";
 import SpectatorsComponent from "@renderer/components/battle/SpectatorsComponent.vue";
 import { GameAI } from "@main/content/game/game-version";
+import { lobbyStore } from "@renderer/store/lobby.store";
 
 const { t } = useTypedI18n();
 
 const botListOpen = ref(false);
-const botModalTeamId = ref(0);
+const botModalTeamId = ref("0");
 
-function openBotList(teamId: number) {
+function openBotList(teamId: string) {
     botModalTeamId.value = teamId;
     botListOpen.value = true;
 }
 
-function onBotSelected(bot: EngineAI | GameAI, teamId: number) {
+function onBotSelected(bot: EngineAI | GameAI, teamId: string) {
     botListOpen.value = false;
     battleActions.addBot(bot, teamId);
 }
 
-function joinTeam(teamId: number) {
+function joinTeam(teamId: string) {
     if (battleStore.me) battleActions.movePlayerToTeam(battleStore.me, teamId);
 }
 
@@ -145,7 +156,7 @@ function dragEnd() {
     document.removeEventListener("dragend", dragEnd);
 }
 
-function onDropTeam(event: DragEvent, teamId: number) {
+function onDropTeam(event: DragEvent, teamId: string) {
     const target = event.target as Element;
     if (!draggedBot.value && !draggedPlayer.value) {
         return;
