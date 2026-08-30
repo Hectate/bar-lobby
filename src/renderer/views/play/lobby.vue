@@ -19,43 +19,58 @@ SPDX-License-Identifier: MIT
             <Button @click="fetchMap()" class="red flex-right" :disabled="!isMapNeeded || contentsStore.isPathChanging"
                 >Download Map</Button
             >
+            <Button @click="switchLobbyTemplate()" class="flex-right">Switch Template</Button>
             <Button @click="leaveLobby()" class="flex-right">Tachyon:Leave Lobby</Button>
         </div>
         <div v-if="lobbyStore.activeLobby">
-            <div>
-                <div v-for="(item, name, index) in lobbyStore.activeLobby" :key="index" :class="getStripeResult(index)">
-                    <div class="margin-left-sm padding-top-sm padding-bottom-sm">
-                        <p class="txt-md">
-                            <b>{{ name }}</b>
-                        </p>
-                    </div>
-                    <div class="margin-right-sm padding-top-sm padding-bottom-sm txt-right">
-                        <div v-if="name == 'allyTeamConfig' || name == 'players' || name == 'spectators' || name == 'currentBattle'">
-                            <ul>
-                                <div v-for="(i, n, x) in item" :key="x">
-                                    <li>{{ n }} - {{ i }}</li>
+            <component :is="switchTemplate ? FFALobby : StandardLobby" :lobby="lobbyStore.activeLobby">
+                <template #header>{{ lobbyStore.activeLobby.name }}</template>
+                <template #main>
+                    <div>
+                        <div v-for="(item, name, index) in lobbyStore.activeLobby" :key="index" :class="getStripeResult(index)">
+                            <div class="margin-left-sm padding-top-sm padding-bottom-sm">
+                                <p class="txt-md">
+                                    <b>{{ name }}</b>
+                                </p>
+                            </div>
+                            <div class="margin-right-sm padding-top-sm padding-bottom-sm txt-right">
+                                <div
+                                    v-if="name == 'allyTeamConfig' || name == 'players' || name == 'spectators' || name == 'currentBattle'"
+                                >
+                                    <ul>
+                                        <div v-for="(i, n, x) in item" :key="x">
+                                            <li>{{ n }} - {{ i }}</li>
+                                        </div>
+                                    </ul>
                                 </div>
-                            </ul>
-                        </div>
-                        <div v-else>
-                            <p class="txt-md">{{ item }}</p>
+                                <div v-else>
+                                    <p class="txt-md">{{ item }}</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
+                </template>
+            </component>
         </div>
     </Panel>
 </template>
 
 <script lang="ts" setup>
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import Panel from "@renderer/components/common/Panel.vue";
 import Button from "@renderer/components/controls/Button.vue";
 import { lobby, lobbyStore } from "@renderer/store/lobby.store";
 import { contentsStore } from "@renderer/store/contents.store";
 import { router } from "@renderer/router";
 import { mapsStore, downloadMap } from "@renderer/store/maps.store";
+import StandardLobby from "@renderer/components/lobbies/standard.vue";
+import FFALobby from "@renderer/components/lobbies/ffa.vue";
 
+const switchTemplate = ref(false);
+
+function switchLobbyTemplate() {
+    switchTemplate.value = !switchTemplate.value;
+}
 function getStripeResult(index: number) {
     return index & 1 ? "datagrid" : "datagrid datagridstripe";
 }
