@@ -15,12 +15,11 @@ SPDX-License-Identifier: MIT
         @bot-selected="onBotSelected"
     />
     <div class="scroll-container padding-right-sm">
-        <div v-if="lobbyStore.activeLobby" class="playerlist">
-            <TeamComponent
-                v-for="(team, key, index) in lobbyStore.activeLobby != undefined ? lobbyStore.activeLobby.allyTeamConfig : {}"
+        <div v-if="battleStore.isOnline" class="playerlist">
+            <LobbyTeamComponent
+                v-for="(team, key) in lobbyStore.activeLobby != undefined ? lobbyStore.activeLobby.allyTeamConfig : {}"
                 :key="key"
-                :teamId="String(index)"
-                :teamKey="key as string"
+                :teamId="key as string"
                 @add-bot-clicked="openBotList(key as string)"
                 @on-join-clicked="joinTeam(key as string)"
             />
@@ -63,7 +62,8 @@ import { Bot, isBot, isRaptor, isScavenger, Player } from "@main/game/battle/bat
 import { battleWithMetadataStore, battleStore, battleActions } from "@renderer/store/battle.store";
 import SpectatorsComponent from "@renderer/components/battle/SpectatorsComponent.vue";
 import { GameAI } from "@main/content/game/game-version";
-import { lobbyStore } from "@renderer/store/lobby.store";
+import { lobbyStore, lobby } from "@renderer/store/lobby.store";
+import LobbyTeamComponent from "@renderer/components/lobbies/LobbyTeamComponent.vue";
 
 const { t } = useTypedI18n();
 
@@ -76,16 +76,32 @@ function openBotList(teamId: string) {
 }
 
 function onBotSelected(bot: EngineAI | GameAI, teamId: string) {
-    botListOpen.value = false;
-    battleActions.addBot(bot, teamId);
+    if (battleStore.isOnline) {
+        lobby.requestAddBot({
+            allyTeam: teamId,
+            name: bot.name,
+            shortName: bot.shortName,
+        });
+    } else {
+        botListOpen.value = false;
+        battleActions.addBot(bot, teamId);
+    }
 }
 
 function joinTeam(teamId: string) {
-    if (battleStore.me) battleActions.movePlayerToTeam(battleStore.me, teamId);
+    if (battleStore.isOnline) {
+        lobby.requestJoinAllyTeam(teamId);
+    } else {
+        if (battleStore.me) battleActions.movePlayerToTeam(battleStore.me, teamId);
+    }
 }
 
 function joinSpectators() {
-    if (battleStore.me) battleActions.movePlayerToSpectators(battleStore.me);
+    if (battleStore.isOnline) {
+        lobby.requestSpectate();
+    } else {
+        if (battleStore.me) battleActions.movePlayerToSpectators(battleStore.me);
+    }
 }
 
 const draggedPlayer: Ref<Player | null> = ref(null);
@@ -128,6 +144,7 @@ function dragEnterSpectators(event: DragEvent) {
 }
 
 function dragStart(event: DragEvent, participant: Player | Bot) {
+    if (battleStore.isOnline) return;
     if (isBot(participant)) {
         draggedBot.value = participant;
     } else {
@@ -142,6 +159,7 @@ function dragStart(event: DragEvent, participant: Player | Bot) {
 }
 
 function dragEnd() {
+    if (battleStore.isOnline) return;
     const participantEl = draggedEl?.querySelector("[data-type=participant]");
     if (participantEl) {
         participantEl.classList.remove("dragging");
@@ -157,6 +175,7 @@ function dragEnd() {
 }
 
 function onDropTeam(event: DragEvent, teamId: string) {
+    if (battleStore.isOnline) return;
     const target = event.target as Element;
     if (!draggedBot.value && !draggedPlayer.value) {
         return;
@@ -177,6 +196,7 @@ function onDropTeam(event: DragEvent, teamId: string) {
 }
 
 function onDropSpectators(event: DragEvent) {
+    if (battleStore.isOnline) return;
     const target = event.target as Element;
     if (draggedBot.value || !draggedPlayer.value || target.getAttribute("data-type") !== "group") {
         if (isBot(draggedBot.value) && (isRaptor(draggedBot.value) || isScavenger(draggedBot.value))) {
