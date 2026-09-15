@@ -101,10 +101,10 @@ defineComponent({
 
 const { get } = useImageBlobUrlCache();
 const mapTextureUrl = computed(() => {
-    if (!battleStore.battleOptions.map?.images) {
+    if (!battleStore.battleOptions.map?.imagesBlob?.preview) {
         return defaultMiniMap;
     }
-    return get(battleStore.battleOptions.map?.springName, battleStore.battleOptions.map?.imagesBlob?.preview);
+    return get(battleStore.battleOptions.map.springName, battleStore.battleOptions.map.imagesBlob.preview);
 });
 
 const startBoxes = ref(battleStore.battleOptions.map?.startboxesSet);

@@ -10,6 +10,7 @@ export type MapData = MapMetadata &
             preview?: Blob;
         };
         isFavorite?: boolean;
+        isLocalOnly?: boolean;
     };
 
 export type MapDownloadData = {

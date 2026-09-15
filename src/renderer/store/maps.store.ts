@@ -109,46 +109,58 @@ export async function refreshMapsStore() {
     });
 }
 
+function localMapData(springName: string): MapData {
+    return {
+        author: "Local map",
+        certified: false,
+        displayName: springName.replaceAll("_", " "),
+        filename: springName,
+        images: { preview: "" },
+        isDownloading: false,
+        isInstalled: true,
+        isLocalOnly: true,
+        mapHeight: 16,
+        mapLists: [],
+        mapWidth: 16,
+        playerCountMax: 40,
+        playerCountMin: 2,
+        springName,
+        startboxesSet: [],
+        tags: [],
+        terrain: [],
+        tidalStrength: 0,
+        windMax: 0,
+        windMin: 0,
+    };
+}
+
 export async function syncMapsMetadata() {
     const [liveMaps, nonLiveMaps] = await window.maps.fetchAllMaps();
 
-    await Promise.allSettled(
-        liveMaps
-            .map((map) => {
-                db.maps.get(map.springName).then((existingMap) => {
-                    if (!existingMap) {
-                        return db.maps.put(map) as Promise<unknown>;
-                    } else {
-                        //TODO this has a limitation. if a field change from defined to undefined it will not be updated.
-                        return db.maps.update(map.springName, { ...map, isDownloading: false }) as Promise<unknown>;
-                    }
-                });
-                if (map.isInstalled) {
-                    mapsStore.availableMapNames.add(map.springName);
-                }
-            })
-            .concat(
-                nonLiveMaps.map((map) => {
-                    db.nonLiveMaps.get(map.springName).then((existingMap) => {
-                        if (!existingMap) {
-                            return db.nonLiveMaps.put(map) as Promise<unknown>;
-                        } else {
-                            return db.nonLiveMaps.update(map.springName, { ...map, isDownloading: false }) as Promise<unknown>;
-                        }
-                    });
-                    if (map.isInstalled) {
-                        mapsStore.availableMapNames.add(map.springName);
-                    }
-                })
-            )
+    await Promise.all(
+        liveMaps.map(async (map) => {
+            const existingMap = await db.maps.get(map.springName);
+            if (!existingMap) {
+                await db.maps.put(map);
+            } else {
+                // TODO this has a limitation. if a field change from defined to undefined it will not be updated.
+                await db.maps.update(map.springName, { ...map, isDownloading: false, isLocalOnly: false });
+            }
+            if (map.isInstalled) {
+                mapsStore.availableMapNames.add(map.springName);
+            }
+        })
     );
 
-    const nonLiveMapSet = new Set(nonLiveMaps.map((map) => map.springName));
-    (await db.nonLiveMaps.toArray())
-        .filter((map) => !nonLiveMapSet.has(map.springName))
-        .forEach((map) => {
-            db.nonLiveMaps.update(map.springName, { ...map, isInstalled: false });
-        });
+    await Promise.all(
+        nonLiveMaps.map(async ({ springName }) => {
+            const existingMap = await db.maps.get(springName);
+            if (!existingMap || existingMap.isLocalOnly) {
+                await db.maps.put({ ...localMapData(springName), isFavorite: existingMap?.isFavorite });
+            }
+            mapsStore.availableMapNames.add(springName);
+        })
+    );
 }
 
 //TODO We need to support updating map images when reference in map metadata changes.
